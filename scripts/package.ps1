@@ -10,7 +10,7 @@ if (-not (Test-Path -LiteralPath $compiler)) {
 }
 & $compiler /Q (Join-Path $PSScriptRoot 'installer.iss')
 if ($LASTEXITCODE -ne 0) { throw 'Compilação do instalador falhou.' }
-$installer = Join-Path $projectRoot 'release/Horizonte-Instalar-0.2.0-Windows-x64.exe'
+$installer = Join-Path $projectRoot 'release/Horizonte-Instalar-0.2.1-Windows-x64.exe'
 $hash = (Get-FileHash -LiteralPath $installer -Algorithm SHA256).Hash.ToLower()
 "$hash  $(Split-Path $installer -Leaf)" | Set-Content -Encoding utf8 (Join-Path $projectRoot 'release/SHA256.txt')
-  
+    
