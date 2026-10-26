@@ -3,7 +3,8 @@ from datetime import date
 from core import Store
 
 def seed_demo(store):
-    if store.setting('demo')=='1':return
+    if store.setting('demo')=='1':
+        seed_demo_v2(store);return
     if store.rows('SELECT id FROM tx') or store.rows('SELECT id FROM positions'):raise ValueError('Demonstração exige um banco separado sem dados pessoais.')
     today=date.today();year=today.year
     store.set('demo','1');store.set('display-name','Perfil demonstrativo')
@@ -19,4 +20,19 @@ def seed_demo(store):
     store.db.execute('INSERT INTO accounts(name,institution,currency,balance,fx_rate,day,ledger_after,note) VALUES (?,?,?,?,?,?,?,?)',('Conta demonstrativa','Banco Exemplo E','BRL',750000,1,today.isoformat(),last,'Saldo fictício de demonstração'))
     store.db.execute('INSERT INTO positions(name,institution,asset_type,principal,value,day,maturity,note,rate_mode,rate,tax,liquidity,asset_group,currency,fx_rate,native_value) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',('Reserva em dólar fictícia','Corretora Exemplo F','Moeda estrangeira',200000,250000,today.isoformat(),'','Valor e cotação fictícios.','Não informada',0,0,'Diária','Moedas estrangeiras','USD',5,50000))
     store.set('profile-age','30');store.set('profile-profession','Perfil fictício')
-    store.db.commit();store.set('goal-links-1','[1,2,3]')
+    store.db.commit();store.set('goal-links-1','[1,2,3]');seed_demo_v2(store)
+
+
+def seed_demo_v2(store):
+    if store.setting('demo-v2')=='1':return
+    from ledger import Ledger
+    from datetime import timedelta
+    ledger=Ledger(store);today=date.today();period=today.strftime('%Y-%m');account='Conta demonstrativa'
+    card=ledger.save_card(dict(name='Cartão demonstrativo',institution='Banco Exemplo E',limit_amount=600000,closing_day=20,due_day=28,payment_account=account,color='#007AFF'))
+    ledger.add_purchase(card,'Notebook de demonstração',240000,period+'-05','Compras',6,period)
+    ledger.add_purchase(card,'Mercado demonstrativo',42000,period+'-07','Alimentação',1,period)
+    ledger.add_purchase(card,'Assinatura demonstrativa',5900,period+'-08','Assinaturas',1,period)
+    ledger.pay_invoice(card,period,30000,today.isoformat(),account)
+    due=(today+timedelta(days=3)).isoformat();store.save_tx(dict(period=due[:7],day=due,due_day=due,description='Internet demonstrativa',kind='Despesa',category='Moradia e contas',amount=12000,account=account,status='Previsto',note='Compromisso fictício para demonstrar a agenda.'))
+    store.set('demo-v2','1')
+    
