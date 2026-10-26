@@ -5,8 +5,9 @@ from PySide6.QtCore import Qt, QDate, QThread, Signal, QTimer, QRectF, QPointF, 
 from PySide6.QtGui import QColor, QPainter, QPen, QFont, QPainterPath, QIcon, QFontDatabase, QPixmap, QImage, QTextDocument
 from PySide6.QtWidgets import (QApplication,QMainWindow,QWidget,QVBoxLayout,QHBoxLayout,QGridLayout,QLabel,QPushButton,QComboBox,QLineEdit,QTableWidget,QTableWidgetItem,QHeaderView,QAbstractItemView,QScrollArea,QFrame,QDialog,QFormLayout,QDialogButtonBox,QDateEdit,QDoubleSpinBox,QSpinBox,QMessageBox,QFileDialog,QProgressBar,QTextEdit,QCheckBox)
 from core import *
+from widgets import FlowLayout
 from finance import position_projection, goal_assessment, recent_capacity, insights, allocation, asset_group
-VERSION='0.2.0'
+VERSION='0.2.1'
 ROOT=Path(getattr(sys,'_MEIPASS',Path(__file__).parent))
 PALETTE=['#14816e','#527bdd','#e5a64e','#9c77cf','#dd7787','#62a6b1','#829468','#aa8868']
 STYLE='''
@@ -42,12 +43,12 @@ def card(title=None):
 
 def table(headers,rows):
     t=QTableWidget(len(rows),len(headers)); t.setHorizontalHeaderLabels(headers); t.verticalHeader().hide(); t.setAlternatingRowColors(True); t.setShowGrid(False)
-    t.setEditTriggers(QAbstractItemView.NoEditTriggers); t.setSelectionBehavior(QAbstractItemView.SelectRows); t.setSelectionMode(QAbstractItemView.SingleSelection)
+    t.setWordWrap(False);t.setTextElideMode(Qt.ElideRight);t.setEditTriggers(QAbstractItemView.NoEditTriggers); t.setSelectionBehavior(QAbstractItemView.SelectRows); t.setSelectionMode(QAbstractItemView.SingleSelection)
     for i,row in enumerate(rows):
         for j,value in enumerate(row):
             item=QTableWidgetItem(str(value if value is not None else '—')); t.setItem(i,j,item)
-    t.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents); t.horizontalHeader().setStretchLastSection(True); t.verticalHeader().setDefaultSectionSize(42)
-    t.setMinimumHeight(240); return t
+    t.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents);t.horizontalHeader().setMinimumSectionSize(120);t.horizontalHeader().setStretchLastSection(False);t.horizontalHeader().setMinimumHeight(max(46,t.fontMetrics().height()+24));t.verticalHeader().setDefaultSectionSize(max(48,t.fontMetrics().height()+24));t.verticalHeader().setMinimumSectionSize(max(48,t.fontMetrics().height()+24))
+    t.setHorizontalScrollMode(QAbstractItemView.ScrollPerPixel);t.setMinimumHeight(240); return t
 
 class Chart(QWidget):
     def __init__(self,mode,series,labels=None,height=230):
@@ -93,13 +94,13 @@ class Chart(QWidget):
 
 class Form(QDialog):
     def __init__(self,title,fields,parent=None):
-        super().__init__(parent); self.setWindowTitle(title); self.setMinimumWidth(530); self.inputs={}; layout=QVBoxLayout(self); layout.setContentsMargins(24,24,24,24); layout.addWidget(label(title,'section')); area=QScrollArea();area.setWidgetResizable(True);area.setFrameShape(QFrame.NoFrame);inner=QWidget();form=QFormLayout(inner);form.setSpacing(12);area.setWidget(inner);layout.addWidget(area);self.resize(620,min(740,QApplication.primaryScreen().availableGeometry().height()-80))
+        super().__init__(parent); self.setWindowTitle(title); self.setMinimumWidth(530); self.inputs={}; layout=QVBoxLayout(self); layout.setContentsMargins(24,24,24,24); layout.addWidget(label(title,'section')); area=QScrollArea();area.setWidgetResizable(True);area.setFrameShape(QFrame.NoFrame);inner=QWidget();form=QFormLayout(inner);form.setSpacing(12);form.setRowWrapPolicy(QFormLayout.WrapLongRows);area.setWidget(inner);layout.addWidget(area);self.resize(620,min(740,QApplication.primaryScreen().availableGeometry().height()-80))
         for key,title,value,options in fields:
             if options:
                 w=QComboBox();w.addItems(options);w.setCurrentText(str(value))
             else:w=QLineEdit('' if value is None else str(value))
-            w.setAccessibleName(title);form.addRow(title,w);self.inputs[key]=w
-        self.error=label('','small',True);layout.addWidget(self.error)
+            w.setAccessibleName(title.replace(' AAAA-MM-DD',' (dia/mês/ano)').replace(' AAAA-MM',' (mês/ano)'));form.addRow(title.replace(' AAAA-MM-DD',' (dia/mês/ano)').replace(' AAAA-MM',' (mês/ano)'),w);self.inputs[key]=w
+        self.error=label('','negative',True);layout.addWidget(self.error)
         box=QDialogButtonBox(QDialogButtonBox.Save|QDialogButtonBox.Cancel);box.button(QDialogButtonBox.Save).setText('Salvar');box.button(QDialogButtonBox.Cancel).setText('Cancelar');box.accepted.connect(self.accept);box.rejected.connect(self.reject);layout.addWidget(box)
     def values(self):return {k:(w.currentText() if isinstance(w,QComboBox) else w.text()).strip() for k,w in self.inputs.items()}
 
@@ -168,7 +169,7 @@ class Window(QMainWindow):
         w,l=card('Últimos lançamentos');rows=self.s.rows('SELECT * FROM tx WHERE period=? ORDER BY id DESC LIMIT 6',(self.p,));l.addWidget(table(['Descrição','Tipo','Categoria','Valor','Situação'],[[x['description'],x['kind'],x['category'],money(x['amount']) if x['amount'] is not None else 'Sem valor',x['status']] for x in rows]));self.body.addWidget(w)
     def transactions(self):
         self.hint('Cadastre receitas, gastos, aportes, resgates e transferências. Dê dois cliques em uma linha para revisar ou editar.')
-        tools=QHBoxLayout();self.search=QLineEdit();self.search.setPlaceholderText('Buscar descrição, conta ou categoria');self.search.setAccessibleName('Buscar lançamentos');tools.addWidget(self.search,1)
+        tools=FlowLayout();self.search=QLineEdit();self.search.setPlaceholderText('Buscar descrição, conta ou categoria');self.search.setAccessibleName('Buscar lançamentos');tools.addWidget(self.search,1)
         self.kind_filter=QComboBox();self.kind_filter.addItems(['Todos os tipos']+KINDS);tools.addWidget(self.kind_filter)
         self.status_filter=QComboBox();self.status_filter.addItems(['Todas as situações','A revisar','Confirmado','Previsto','Sem valor']);tools.addWidget(self.status_filter)
         tools.addWidget(button('Editar',self.edit_selected));tools.addWidget(button('Excluir',self.delete_selected));self.body.addLayout(tools)
@@ -210,7 +211,7 @@ class Window(QMainWindow):
             except (ValueError,sqlite3.Error) as e:f.error.setText(str(e))
     def budgets(self):
         self.hint('Defina limites de despesas para o mês selecionado. As categorias da importação são sugestões e podem ser corrigidas nos lançamentos.')
-        tools=QHBoxLayout();tools.addWidget(button('Definir limite',self.edit_budget,True));tools.addWidget(button('Remover limite',self.remove_budget));tools.addStretch();self.body.addLayout(tools)
+        tools=FlowLayout();tools.addWidget(button('Definir limite',self.edit_budget,True));tools.addWidget(button('Remover limite',self.remove_budget));tools.addStretch();self.body.addLayout(tools)
         budgets={x['category']:x['amount'] for x in self.s.rows('SELECT * FROM budgets WHERE period=?',(self.p,))};spent={x['category']:x['v'] for x in self.s.rows("SELECT category,SUM(amount) AS v FROM tx WHERE period=? AND kind='Despesa' AND status!='Previsto' GROUP BY category",(self.p,))}
         self.budget_rows=sorted(set(budgets)|set(spent));rows=[]
         for cat in self.budget_rows:
@@ -232,7 +233,7 @@ class Window(QMainWindow):
         self.hint('Carteira informada • posições independentes do filtro mensal. Atualize os saldos após aportes, resgates ou valorização. Custo de aquisição ausente não vira rendimento.')
         all_positions=self.s.rows('SELECT * FROM positions ORDER BY value DESC');filter_type=getattr(self,'asset_filter','Todos');self.positions=[p for p in all_positions if filter_type=='Todos' or p['asset_type']==filter_type];total=sum(x['value'] for x in self.positions);known=[x for x in self.positions if x['principal'] is not None]
         self.metrics([('Total informado',money(total),'Consulte as datas na tabela'),('Resultado com custo conhecido',money(sum(x['value']-x['principal'] for x in known)),f'{len(known)} posições com custo informado'),('Reserva de emergência',money(sum(x['value'] for x in self.positions if 'Reserva de emergência' in x['note'])),'Identificada nas observações')])
-        tools=QHBoxLayout();filterbox=QComboBox();filterbox.addItems(['Todos']+sorted(set(p['asset_type'] for p in all_positions)));filterbox.setCurrentText(filter_type);filterbox.currentTextChanged.connect(self.filter_assets);tools.addWidget(filterbox);tools.addWidget(button('+ Adicionar posição',self.edit_position,True));tools.addWidget(button('Editar posição',self.edit_position_selected));tools.addWidget(button('Excluir posição',self.delete_position));tools.addWidget(button('Projetar ativo selecionado',self.project_position));tools.addStretch();self.body.addLayout(tools)
+        tools=FlowLayout();filterbox=QComboBox();filterbox.addItems(['Todos']+sorted(set(p['asset_type'] for p in all_positions)));filterbox.setCurrentText(filter_type);filterbox.currentTextChanged.connect(self.filter_assets);tools.addWidget(filterbox);tools.addWidget(button('+ Adicionar posição',self.edit_position,True));tools.addWidget(button('Editar posição',self.edit_position_selected));tools.addWidget(button('Excluir posição',self.delete_position));tools.addWidget(button('Projetar ativo selecionado',self.project_position));tools.addStretch();self.body.addLayout(tools)
         self.position_table=table(['Ativo','Instituição','Tipo','Custo','Saldo informado','Indexador','Taxa','Liquidez','Registro','Vencimento'],[[x['name'],x['institution'],x['asset_type'],money(x['principal']) if x['principal'] is not None else 'Não informado',money(x['value']),x['rate_mode'],str(x['rate'])+'%',x['liquidity'],x['day'],x['maturity'] or '—'] for x in self.positions]);self.position_table.cellDoubleClicked.connect(lambda *_:self.edit_position_selected());self.body.addWidget(self.position_table)
         w,l=card('Distribuição da carteira');l.addWidget(Chart('bar',[('Saldo',[x['value'] for x in self.positions])],[x['institution'] for x in self.positions]));self.body.addWidget(w)
         w,l=card('Posições históricas da planilha • '+month_label(self.p));snap=self.s.rows('SELECT * FROM snapshots WHERE period=?',(self.p,));l.addWidget(label('Histórico de abertura; não é somado à carteira acima. Tipo do investimento precisa de confirmação.','small',True));l.addWidget(table(['Descrição original','Grupo sugerido','Valor','Data original'],[[x['name'],x['group_name'],money(x['amount']) if x['amount'] is not None else 'Ausente',x['day']] for x in snap]));self.body.addWidget(w)
@@ -246,7 +247,7 @@ class Window(QMainWindow):
         if i>=0 and QMessageBox.question(self,'Excluir posição','Excluir esta posição da carteira?')==QMessageBox.Yes:self.s.db.execute('DELETE FROM positions WHERE id=?',(self.positions[i]['id'],));self.s.db.commit();self.render()
     def edit_position(self,data=None):
         if not isinstance(data,dict):data={}
-        f=Form('Posição de investimento',[('name','Nome do ativo',data.get('name',''),None),('institution','Instituição',data.get('institution',''),None),('asset_type','Tipo',data.get('asset_type','CDB'),['CDB','LCI','LCA','Bitcoin','Cripto a classificar','Reserva de emergência','CDB / liquidez a revisar','Renda fixa a classificar','Ações','ETF','FII','Renda variável','Criptomoeda','Moeda estrangeira','Outros']),('principal','Custo aplicado BRL (opcional)',str(data['principal']/100).replace('.',',') if data.get('principal') is not None else '',None),('value','Saldo na moeda do ativo',str((data.get('native_value') if data.get('native_value') is not None else data.get('value',0))/100).replace('.',','),None),('day','Data de registro AAAA-MM-DD',data.get('day',date.today().isoformat()),None),('maturity','Vencimento AAAA-MM-DD (opcional)',data.get('maturity',''),None),('asset_group','Classe patrimonial',data.get('asset_group','A classificar'),['A classificar','Renda fixa','Renda variável','Criptomoedas','Moedas estrangeiras','Outros']),('currency','Moeda do saldo',data.get('currency','BRL'),['BRL','USD','EUR','JPY']),('fx_rate','Reais por unidade da moeda',data.get('fx_rate',1),None),('note','Observações',data.get('note',''),None),('rate_mode','Indexador',data.get('rate_mode','Não informada'),['Não informada','Prefixado % a.a.','% CDI','IPCA + % a.a.']),('rate','Taxa (15,10 / 109 / IPCA + spread)',data.get('rate',0),None),('tax','Imposto hipotético sobre lucro %',data.get('tax',0),None),('liquidity','Liquidez',data.get('liquidity','A confirmar'),['A confirmar','Diária','No vencimento'])],self)
+        f=Form('Posição de investimento',[('name','Nome do ativo',data.get('name',''),None),('institution','Instituição',data.get('institution',''),None),('asset_type','Tipo',data.get('asset_type','CDB'),['CDB','LCI','LCA','Bitcoin','Cripto a classificar','Reserva de emergência','CDB / liquidez a revisar','Renda fixa a classificar','Ações','ETF','FII','Renda variável','Criptomoeda','Moeda estrangeira','Outros']),('principal','Custo aplicado BRL (opcional)',str(data['principal']/100).replace('.',',') if data.get('principal') is not None else '',None),('value','Saldo na moeda do ativo',str((data.get('native_value') if data.get('native_value') is not None else data.get('value',0))/100).replace('.',','),None),('day','Data de registro',data.get('day',date.today().isoformat()),None),('maturity','Vencimento (opcional)',data.get('maturity',''),None),('asset_group','Classe patrimonial',data.get('asset_group','A classificar'),['A classificar','Renda fixa','Renda variável','Criptomoedas','Moedas estrangeiras','Outros']),('currency','Moeda do saldo',data.get('currency','BRL'),['BRL','USD','EUR','JPY']),('fx_rate','Reais por unidade da moeda',data.get('fx_rate',1),None),('note','Observações',data.get('note',''),None),('rate_mode','Indexador',data.get('rate_mode','Não informada'),['Não informada','Prefixado % a.a.','% CDI','IPCA + % a.a.']),('rate','Taxa (15,10 / 109 / IPCA + spread)',data.get('rate',0),None),('tax','Imposto hipotético sobre lucro %',data.get('tax',0),None),('liquidity','Liquidez',data.get('liquidity','A confirmar'),['A confirmar','Diária','No vencimento'])],self)
         while f.exec():
             try:
                 v=f.values();v['value']=cents(v['value']);v['principal']=cents(v['principal']) if v['principal'] else None
@@ -275,7 +276,7 @@ class Window(QMainWindow):
             if a['need']>max(0,a['capacity']['capacity']):l.addWidget(label('O aporte necessário supera a sobra média. Revise despesas, renda, prazo ou valor da meta.',None,True))
             if a['unavailable']:l.addWidget(label(money(a['unavailable'])+' projetados ficam fora do saldo disponível por liquidez ou vencimento não confirmados.',None,True))
             if a['warnings']:l.addWidget(label(' / '.join(a['warnings']),'small',True))
-            row=QHBoxLayout();row.addWidget(button('Editar meta',lambda _,x=g:self.edit_goal(x)));row.addWidget(button('Vincular investimentos',lambda _,x=g:self.link_goal(x)));row.addWidget(button('Excluir meta',lambda _,x=g:self.delete_goal(x)));row.addStretch();l.addLayout(row)
+            row=FlowLayout();row.addWidget(button('Editar meta',lambda _,x=g:self.edit_goal(x)));row.addWidget(button('Vincular investimentos',lambda _,x=g:self.link_goal(x)));row.addWidget(button('Excluir meta',lambda _,x=g:self.delete_goal(x)));row.addStretch();l.addLayout(row)
             linked=json.loads(self.s.setting('goal-links-'+str(g['id']),'[]'));holdings=[p for p in self.s.rows('SELECT * FROM positions') if p['id'] in linked]
             if holdings:
                 series=[];labs=[];today=date.today()
@@ -372,14 +373,15 @@ class Window(QMainWindow):
         total=sum(x['value'] for x in self.s.rows('SELECT value FROM positions'));saved=json.loads(self.s.setting('simulation','{}'))
         specs=[('initial','Capital inicial R$',str(total/100).replace('.',',')),('start','Primeiro mês AAAA-MM','2026-10'),('end','Último mês AAAA-MM','2030-03'),('early','Aporte até dez/2026 R$','1000,00'),('later','Aporte desde jan/2027 R$','1500,00'),('rate','Retorno líquido hipotético % ao mês','1,05'),('bonus','Bônus em dezembro de 2026 a 2029 R$','3000,00'),('reserve','Reserva preservada R$','5000,00'),('withdraw','Gasto extraordinário R$','8000,00'),('withdraw_month','Mês do gasto AAAA-MM','2028-01'),('income','Receita mensal futura R$','5000,00'),('expense','Despesa mensal futura R$','3500,00')]
         for i,(key,title,default) in enumerate(specs):
-            col=i%3;row=(i//3)*2;grid.addWidget(label(title,'small'),row,col);edit=QLineEdit(str(saved.get(key,default)));edit.setAccessibleName(title);grid.addWidget(edit,row+1,col);self.sim[key]=edit
+            col=i%2;row=(i//2)*2;grid.addWidget(label(title.replace(' AAAA-MM',' (mês/ano)'),'small',True),row,col);edit=__import__('widgets').MonthField(str(saved.get(key,default))) if key in ['start','end','withdraw_month'] else QLineEdit(str(saved.get(key,default)));edit.setAccessibleName(title);grid.addWidget(edit,row+1,col);self.sim[key]=edit
         l.addLayout(grid);self.exclude_reserve=QCheckBox('Preservar a reserva de emergência fora do capital simulado');self.exclude_reserve.setChecked(saved.get('exclude_reserve',True));l.addWidget(self.exclude_reserve)
         self.include_withdraw=QCheckBox('Incluir o gasto extraordinário na projeção');self.include_withdraw.setChecked(saved.get('include_withdraw',False));l.addWidget(self.include_withdraw)
-        l.addWidget(button('Calcular e salvar premissas',self.calculate_sim,True));l.addWidget(button('Usar médias dos últimos três meses',self.use_recent_sim));self.body.addWidget(w);self.sim_out=QWidget();self.sim_layout=QVBoxLayout(self.sim_out);self.sim_layout.setContentsMargins(0,0,0,0);self.sim_layout.setSpacing(16);self.body.addWidget(self.sim_out);self.calculate_sim()
+        l.addWidget(button('Calcular e salvar premissas',self.calculate_sim,True));l.addWidget(button('Usar médias dos últimos três meses',self.use_recent_sim));self.body.addWidget(w);self.sim_out=QWidget();self.sim_layout=QVBoxLayout(self.sim_out);self.sim_layout.setContentsMargins(0,0,0,0);self.sim_layout.setSpacing(16);self.body.addWidget(self.sim_out);self.sim_error=label('','negative',True);self.body.addWidget(self.sim_error);self.calculate_sim()
     def use_recent_sim(self):
         cap=recent_capacity(self.s,self.p)
         self.sim['income'].setText(str(cap['income']/100).replace('.',','));self.sim['expense'].setText(str(cap['expense']/100).replace('.',','));self.calculate_sim()
     def calculate_sim(self):
+        self.sim_error.clear()
         try:
             v={k:e.text().strip() for k,e in self.sim.items()};start=date.fromisoformat(v['start']+'-01');end=date.fromisoformat(v['end']+'-01');n=(end.year-start.year)*12+end.month-start.month+1
             if not 1<=n<=120:raise ValueError('Escolha um intervalo de 1 a 120 meses.')
@@ -398,7 +400,7 @@ class Window(QMainWindow):
                     key=start.year*12+start.month-1+i;y,m=divmod(key,12);m+=1;p=f'{y:04d}-{m:02d}';contribution=amounts['early'] if p<='2026-12' else amounts['later'];bonus=amounts['bonus'] if m==12 and 2026<=y<=2029 else 0
                     withdrawal=amounts['withdraw'] if self.include_withdraw.isChecked() and p==v['withdraw_month'] else 0
                     earnings=round(balance*rate);balance+=earnings+contribution+bonus-withdrawal;paid+=contribution;bonus_sum+=bonus;withdraw_sum+=withdrawal;values.append(balance)
-                    if rate==annual_month and len(series)==1:rows.append([p,contribution,bonus,earnings,withdrawal,balance,amounts['income']-amounts['expense']-contribution-bonus])
+                    if len(series)==1:rows.append([p,contribution,bonus,earnings,withdrawal,balance,amounts['income']-amounts['expense']-contribution-bonus])
                 series.append(values)
             while self.sim_layout.count():
                 item=self.sim_layout.takeAt(0)
@@ -412,7 +414,11 @@ class Window(QMainWindow):
             bl.addWidget(label(f"{len(negative)} meses têm aportes + bônus superiores à receita menos despesas informadas. Ajuste o orçamento ou inclua a renda extraordinária na hipótese de receita.",None,True));self.sim_layout.addWidget(box)
             box,bl=card('Memória de cálculo mensal');bl.addWidget(table(['Mês','Aporte','Bônus','Rendimento','Retirada','Saldo projetado','Sobra de caixa*'],[[r[0]]+[money(x) for x in r[1:]] for r in rows]));bl.addWidget(label('* Receita mensal − despesa mensal − aporte − bônus. Não inclui o gasto extraordinário, que sai do capital simulado. Valores nominais, sem ajuste inflacionário.','small',True));self.sim_layout.addWidget(box)
             v['exclude_reserve']=self.exclude_reserve.isChecked();v['include_withdraw']=self.include_withdraw.isChecked();self.s.set('simulation',json.dumps(v))
-        except (ValueError,OverflowError) as e:QMessageBox.warning(self,'Revise as premissas',str(e))
+        except (ValueError,OverflowError) as e:
+            self.sim_error.setText(str(e))
+            while self.sim_layout.count():
+                item=self.sim_layout.takeAt(0)
+                if item.widget():item.widget().deleteLater()
     def automatic_backup(self):
         try:
             self.s.daily_backup()
@@ -442,7 +448,7 @@ class Window(QMainWindow):
         if data:
             pix=QPixmap();pix.loadFromData(base64.b64decode(data));photo.setPixmap(pix.scaled(120,120,Qt.KeepAspectRatio,Qt.SmoothTransformation))
         else:photo.setText('Sem foto')
-        l.addWidget(photo);row=QHBoxLayout();row.addWidget(button('Escolher foto',self.choose_photo));row.addWidget(button('Remover foto',self.remove_photo));row.addStretch();l.addLayout(row);l.addWidget(button('Salvar perfil',self.save_profile,True));self.body.addWidget(w)
+        l.addWidget(photo);row=FlowLayout();row.addWidget(button('Escolher foto',self.choose_photo));row.addWidget(button('Remover foto',self.remove_photo));row.addStretch();l.addLayout(row);l.addWidget(button('Salvar perfil',self.save_profile,True));self.body.addWidget(w)
     def choose_photo(self):
         path,_=QFileDialog.getOpenFileName(self,'Foto de perfil','','Imagem (*.png *.jpg *.jpeg *.webp)')
         if not path:return
@@ -467,7 +473,7 @@ class Window(QMainWindow):
         self.hint('Cadastre somente saldo em conta, separado de CDBs e outros investimentos. O saldo conferido incorpora os registros já existentes; novos lançamentos confirmados na conta passam a movimentá-lo.')
         self.bank_rows=self.s.rows('SELECT * FROM accounts ORDER BY institution,name');total=sum(self.s.account_balance(a) for a in self.bank_rows)
         self.metrics([('Contas cadastradas',str(len(self.bank_rows)),'Instituições e contas informadas'),('Saldo total em BRL',money(total),'Inclui conversão manual de moeda estrangeira')])
-        row=QHBoxLayout();row.addWidget(button('+ Adicionar conta',self.edit_account,True));row.addWidget(button('Conferir ou editar saldo',self.edit_account_selected));row.addWidget(button('Excluir conta',self.delete_account));row.addStretch();self.body.addLayout(row)
+        row=FlowLayout();row.addWidget(button('+ Adicionar conta',self.edit_account,True));row.addWidget(button('Conferir ou editar saldo',self.edit_account_selected));row.addWidget(button('Excluir conta',self.delete_account));row.addStretch();self.body.addLayout(row)
         self.bank_table=table(['Conta','Banco / instituição','Moeda','Saldo na moeda','Equivalente BRL','Cotação BRL/un.','Conferência'],[[a['name'],a['institution'],a['currency'],f"{self.s.account_balance(a)/a['fx_rate']/100:,.2f}",money(self.s.account_balance(a)),a['fx_rate'],a['day']] for a in self.bank_rows]);self.bank_table.cellDoubleClicked.connect(lambda *_:self.edit_account_selected());self.body.addWidget(self.bank_table)
         w,l=card('Saldo por instituição');groups={}
         for a in self.bank_rows:groups[a['institution']]=groups.get(a['institution'],0)+self.s.account_balance(a)
@@ -502,7 +508,7 @@ class Window(QMainWindow):
     def reports(self):
         self.hint('Relatórios por competência e fotografia atual do patrimônio. Valores de moedas estrangeiras usam a cotação manual cadastrada no ativo ou conta.')
         self.body.addWidget(button('Exportar relatório em PDF',self.export_report,True));self.report_charts=[]
-        groups=allocation(self.s);self.metrics([('Patrimônio cadastrado',money(sum(groups.values())),'Contas + posições, após conversão para BRL'),('Investimentos',money(sum(p['value'] for p in self.s.rows('SELECT value FROM positions'))),'Posições informadas'),('Bancos e contas',money(sum(self.s.account_balance(a) for a in self.s.rows('SELECT * FROM accounts'))),'Saldo conferido + novos movimentos')])
+        groups=allocation(self.s);self.metrics([('Patrimônio líquido',money(sum(groups.values())-__import__('ledger').Ledger(self.s).outstanding()),'Ativos menos dívida de cartões'),('Ativos brutos',money(sum(groups.values())),'Contas + posições, após conversão para BRL'),('Investimentos',money(sum(p['value'] for p in self.s.rows('SELECT value FROM positions'))),'Posições informadas'),('Bancos e contas',money(sum(self.s.account_balance(a) for a in self.s.rows('SELECT * FROM accounts'))),'Saldo conferido + novos movimentos')])
         w,l=card('Distribuição por classe');chart=Chart('donut',[(k,[v]) for k,v in groups.items() if v>0]);l.addWidget(chart);self.report_charts.append(chart);l.addWidget(table(['Classe patrimonial','Valor BRL','Participação'],[[k,money(v),f'{v/sum(groups.values()):.1%}' if sum(groups.values()) else '—'] for k,v in groups.items()]));self.body.addWidget(w)
         periods=[p for p in self.s.periods() if p<=self.p][-12:];data=[self.s.summary(p) for p in periods];w,l=card('Receitas, consumo e aportes');chart=Chart('bar',[('Receitas',[d['Receita'] for d in data]),('Despesas',[d['Despesa'] for d in data]),('Aportes',[d['Aporte'] for d in data])],[p[2:] for p in periods],260);l.addWidget(chart);self.report_charts.append(chart);l.addWidget(table(['Mês','Receitas','Despesas','Aportes','Resgates','Fluxo disponível'],[[p]+[money(d[k]) for k in ['Receita','Despesa','Aporte','Resgate','livre']] for p,d in zip(periods,data)]));self.body.addWidget(w)
         currencies={};institutions={}
@@ -542,7 +548,7 @@ class Window(QMainWindow):
         reports=self.s.rows('SELECT * FROM imports ORDER BY stamp DESC')
         if reports:
             w,l=card('Relatório da última importação');text=QTextEdit();text.setReadOnly(True);text.setPlainText(reports[0]['report']);text.setMinimumHeight(270);l.addWidget(text);self.body.addWidget(w)
-        w,l=card('Cópias e portabilidade');row=QHBoxLayout();row.addWidget(button('Criar backup .sqlite',self.backup));row.addWidget(button('Restaurar backup',self.restore));row.addWidget(button('Pasta de backup automático',self.choose_backup_folder));row.addWidget(button('Exportar lançamentos CSV',self.export_csv));l.addLayout(row);l.addWidget(label('Local dos dados: '+str(self.s.path),'small',True));l.addWidget(label('Backup automático: '+self.s.setting('backup-folder',str(self.s.path.parent/'backups'))+' • Última cópia: '+self.s.setting('last-backup','ainda não realizada'),'small',True));l.addWidget(label('Backup inclui perfil, foto, contas, lançamentos, metas, carteira, limites e premissas. Arquivos locais não são criptografados. A exportação CSV contém apenas lançamentos.','small',True));self.body.addWidget(w)
+        w,l=card('Cópias e portabilidade');row=FlowLayout();row.addWidget(button('Criar backup .sqlite',self.backup));row.addWidget(button('Restaurar backup',self.restore));row.addWidget(button('Pasta de backup automático',self.choose_backup_folder));row.addWidget(button('Exportar lançamentos CSV',self.export_csv));l.addLayout(row);l.addWidget(label('Local dos dados: '+str(self.s.path),'small',True));l.addWidget(label('Backup automático: '+self.s.setting('backup-folder',str(self.s.path.parent/'backups'))+' • Última cópia: '+self.s.setting('last-backup','ainda não realizada'),'small',True));l.addWidget(label('Backup inclui perfil, foto, contas, lançamentos, metas, carteira, limites e premissas. Arquivos locais não são criptografados. A exportação CSV contém apenas lançamentos.','small',True));self.body.addWidget(w)
         w,l=card('Sobre esta versão');l.addWidget(label('Horizonte '+VERSION+' • aplicativo desktop para Windows. Não exige navegador, conta, assinatura ou API paga. Câmbio é consultado apenas quando solicitado. Não possui conexão bancária automática, sincronização, tributação automática ou cotação de cripto em tempo real.','subtitle',True));l.addWidget(label('Fontes de referência: Mobills (organização por categorias e orçamento); Financial Budget (realizado, premissas e previsões); Frankfurter (câmbio diário). Interface própria.','small',True));self.body.addWidget(w)
     def import_file(self):
         path,_=QFileDialog.getOpenFileName(self,'Importar planilha','','Excel (*.xlsx)')
@@ -597,6 +603,12 @@ def main():
         QFontDatabase.addApplicationFont(str(Path(os.environ.get('WINDIR','C:/Windows'))/'Fonts'/fontfile))
     app.setFont(QFont('Segoe UI',10));app.setStyle('Fusion');app.setStyleSheet(STYLE)
     folder=Path(os.environ.get('HORIZONTE_DATA_DIR',str(Path(os.environ.get('LOCALAPPDATA',str(Path.home()))) / ('HorizonteDemo' if '--demo' in sys.argv else 'Horizonte'))));folder.mkdir(parents=True,exist_ok=True);database=folder/'financas.sqlite'
+    def ui_error(kind,error,tb):
+        log=folder/'interface-error.txt'
+        with log.open('a',encoding='utf-8') as output:output.write(datetime.now().isoformat()+'\n'+''.join(traceback.format_exception(kind,error,tb))+'\n')
+        if '--smoke-test' in sys.argv:app.exit(1)
+        else:QMessageBox.critical(None,'Não foi possível concluir a ação','A ação encontrou um erro. Detalhes foram registrados em '+str(log)+'\n'+str(error))
+    sys.excepthook=ui_error
     lock=QLockFile(str(folder/'session.lock'));lock.setStaleLockTime(0)
     if not lock.tryLock(0):
         QMessageBox.information(None,'Horizonte já está aberto','Feche a outra janela do Horizonte antes de abrir este banco novamente.');return
