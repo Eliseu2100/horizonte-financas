@@ -30,4 +30,11 @@ No empacotamento, foi corrigida uma seleção incompatível de ICU: o build util
 O executável PyInstaller abriu e renderizou todas as telas. O instalador 0.1 foi executado em pasta isolada; o instalador 0.2 foi aplicado sobre essa mesma instalação. Todos os registros originais das tabelas financeiras e um marcador de configuração foram preservados. O banco migrou para esquema 2, com backup anterior criado. O executável atualizado renderizou as 14 telas. A desinstalação de teste preservou o banco. O pacote público não contém seed.sqlite pessoal.
 
 A validação não equivale a homologação em todas as versões do Windows. O aplicativo não tem assinatura digital de editor. O build público em Actions repete testes, smoke test do executável e compilação do instalador.
+
+
+## Elisei 0.3.0
+
+42 testes automatizados aprovados localmente, incluindo 55 rotas de botão nas 14 telas. Os testes exercitam calendário, vencimento de investimento gravado, orçamento selecionado, conta criada dentro do lançamento, agenda sem valor, filtros persistentes, foto circular e reenquadramento, simulação inválida e recuperação, exportações PDF/CSV, backup/restauração e coerência da carteira mensal com caixa. O teste de largura detectou e corrigiu uma restrição indevida que impedia a grade de métricas de se ajustar à janela de 1000 pixels. A cobertura combina cliques de roteamento com diálogos cancelados e fluxos de gravação efetivos; não afirma testar todos os microcontroles nativos do Windows. Ver ELISEI-0.3.md.
+
+Repetidos os testes de interface em escala Qt 150%, com três testes aprovados. Isso amplia a verificação de layout, sem afirmar homologação de toda combinação de monitores do Windows.
   
