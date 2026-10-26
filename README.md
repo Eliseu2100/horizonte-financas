@@ -1,4 +1,4 @@
-# Horizonte Finanças 0.2
+# Horizonte Finanças 0.2.1
 
 Aplicativo desktop para Windows de controle de gastos, investimentos e planejamento por metas. Construído com Python, PySide6 e SQLite. A interface usa janelas nativas de desktop e funciona sem navegador ou servidor local.
 
@@ -7,6 +7,10 @@ Aplicativo desktop para Windows de controle de gastos, investimentos e planejame
 ![Dashboard com dados fictícios](https://github.com/user-attachments/assets/243149c2-5429-49e6-a4f1-6ab813f0ccad)
 
 [Baixar instalador e ver versões](https://github.com/Eliseu2100/horizonte-financas/releases) · [Atualizar uma instalação existente](docs/ATUALIZACAO-0.2.md)
+
+## Correções 0.2.1
+
+Calendários de datas e vencimentos em português; orçamento edita a linha selecionada; agenda permite incluir/editar e mostra itens sem valor; filtros de lançamentos persistem após salvar. Tabelas com dimensões mínimas e navegação sem efeitos de opacidade sobre o conteúdo rolável. Simulações mostram erros locais e limpam resultados inválidos. Foto com enquadramento, zoom, deslocamento e moldura circular. PDF inclui indicadores, títulos, tabelas e gráficos.
 
 ## O problema
 
