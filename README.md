@@ -1,20 +1,29 @@
-# Horizonte Finanças 0.2.1
+# Elisei Finanças 0.3.0
+
+Anteriormente chamado Horizonte. A identidade Elisei foi criada a partir do nome do autor e da ideia de progresso por metas.
 
 Aplicativo desktop para Windows de controle de gastos, investimentos e planejamento por metas. Construído com Python, PySide6 e SQLite. A interface usa janelas nativas de desktop e funciona sem navegador ou servidor local.
 
 **Projeto demonstrativo de portfólio, em desenvolvimento. Todos os dados da demonstração são fictícios.** O repositório não contém extratos, planilhas, bancos de dados ou saldos pessoais.
 
-![Dashboard com dados fictícios](https://github.com/user-attachments/assets/243149c2-5429-49e6-a4f1-6ab813f0ccad)
+![Dashboard com dados fictícios](https://github.com/user-attachments/assets/43b17bc8-26ad-47e6-9ec3-dbfeb7e5a50c)
 
 [Baixar instalador e ver versões](https://github.com/Eliseu2100/horizonte-financas/releases) · [Atualizar uma instalação existente](docs/ATUALIZACAO-0.2.md)
 
-## Correções 0.2.1
+## Novidades 0.3.0
+
+- Carteira mensal com aportes, resgates, saldos conferidos e variação patrimonial separados. Histórico por ativo e atualização manual de saldo, com projeção identificada como hipótese.
+- Vínculo entre movimento de investimento e lançamento de caixa sem duplicação; permite associar aportes já lançados.
+- Diagnóstico local de integridade/coerência, relatório sem valores pessoais e modo de consulta com valores ocultos.
+- Marca e símbolo próprios em SVG, ícones vetoriais consistentes e instalador/atalho com a nova identidade.
+
+## Correções incorporadas
 
 Calendários de datas e vencimentos em português; orçamento edita a linha selecionada; agenda permite incluir/editar e mostra itens sem valor; filtros de lançamentos persistem após salvar. Tabelas com dimensões mínimas e navegação sem efeitos de opacidade sobre o conteúdo rolável. Simulações mostram erros locais e limpam resultados inválidos. Foto com enquadramento, zoom, deslocamento e moldura circular. PDF inclui indicadores, títulos, tabelas e gráficos.
 
 ## O problema
 
-Registros de gastos, posições de investimento e objetivos futuros ficam difíceis de comparar quando tratados separadamente. O Horizonte organiza essas informações e explica quando o aporte necessário para uma meta supera a sobra mensal registrada.
+Registros de gastos, posições de investimento e objetivos futuros ficam difíceis de comparar quando tratados separadamente. O Elisei organiza essas informações e explica quando o aporte necessário para uma meta supera a sobra mensal registrada.
 
 ## Funcionalidades implementadas
 
@@ -50,6 +59,7 @@ Windows 10 (1903 ou posterior)/11 de 64 bits e Python 3.12 ou posterior:
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\python -m pip install -r requirements.txt
+.\.venv\Scripts\python scripts\prepare_assets.py
 .\.venv\Scripts\python src\app.py --demo
 ```
 
@@ -62,7 +72,7 @@ A demonstração usa `%LOCALAPPDATA%\HorizonteDemo`. Para iniciar sem dados de e
 .\scripts\build.ps1
 ```
 
-Abra `dist\Horizonte\Horizonte.exe`. A pasta inteira é necessária na versão portátil. Com o compilador oficial Inno Setup disponível, `ISCC scripts\installer.iss` gera o instalador em `release\`. Nenhum dado pessoal é incluído no build público. O script usa a .venv e reconstitui o ícone a partir de scripts/prepare_assets.py.
+Abra `dist\Elisei\Elisei.exe`. A pasta inteira é necessária na versão portátil. Com o compilador oficial Inno Setup disponível, `ISCC scripts\installer.iss` gera o instalador em `release\`. Nenhum dado pessoal é incluído no build público. O script usa a .venv e reconstitui o ícone a partir de scripts/prepare_assets.py.
 
 ## Testes
 
@@ -82,6 +92,7 @@ Não há integração bancária/Open Finance, sincronização em nuvem, autentic
 
 ## Planejamento e estudo de caso
 
+- [Guia da versão 0.3 e histórico mensal](docs/ELISEI-0.3.md)
 - [Design e referências](docs/DESIGN.md)
 - [Atualização 0.2](docs/ATUALIZACAO-0.2.md)
 - [Requisitos e escopo](docs/REQUISITOS.md)
