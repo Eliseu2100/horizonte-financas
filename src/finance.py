@@ -25,7 +25,7 @@ def position_projection(p, deadline, cdi=10.0, inflation=4.0):
     return dict(gross=gross,net=net,tax=tax,available=available,warnings=warnings)
 
 def recent_capacity(store,period):
-    periods=[p for p in store.periods() if p<=period and store.rows('SELECT 1 FROM tx WHERE period=? AND amount IS NOT NULL',(p,))][-3:]
+    periods=[p for p in store.periods() if p<=period and (store.rows("SELECT 1 FROM tx WHERE period=? AND amount IS NOT NULL AND status!='Previsto'",(p,)) or store.rows('SELECT 1 FROM card_items WHERE period=?',(p,)))][-3:]
     if not periods:return dict(income=0,expense=0,capacity=0,periods=[])
     sums=[store.summary(p) for p in periods];income=round(sum(s['Receita'] for s in sums)/len(sums));expense=round(sum(s['Despesa'] for s in sums)/len(sums))
     return dict(income=income,expense=expense,capacity=income-expense,periods=periods)
@@ -57,7 +57,7 @@ def insights(store,period):
     from ledger import Ledger
     spent_categories=Ledger(store).category_spend(period)
     for b in store.rows('SELECT * FROM budgets WHERE period=?',(period,)):
-        spent=spent_categories.get(b['category'],0)
+        spent=Ledger(store).budget_spend(period,b['category'])
         if spent>b['amount']:out.append(('Limite ultrapassado',b['category']+': '+money(spent-b['amount'])+' acima do limite. Revise as próximas compras dessa categoria.'))
     cats=sorted([dict(category=k,n=v) for k,v in spent_categories.items()],key=lambda r:r['n'],reverse=True)
     if cats and cats[0]['n']:
