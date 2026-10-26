@@ -44,7 +44,7 @@ class InvestmentBook:
             projected=dict(p,value=value,day=start,principal=None,tax=0)
             return position_projection(projected,end,float(self.s.setting('assumed-cdi','10')) if cdi is None else cdi,float(self.s.setting('assumed-inflation','4')) if inflation is None else inflation)['gross']
         for event in events:
-            balance=grow(balance,last,event['day']);sign=1 if event['kind']=='Aporte' else -1;balance+=sign*event['amount'];native+=sign*event['native_amount'];last=event['day']
+            balance=grow(balance,last,event['day']);sign=1 if event['kind']=='Aporte' else -1;balance+=sign*(event['amount'] if p['currency']=='BRL' else round(event['native_amount']*quote['fx_rate']));native+=sign*event['native_amount'];last=event['day']
         balance=grow(balance,last,cutoff)
         return dict(value=balance,native_value=native,fx_rate=quote['fx_rate'],quote_day=quote['day'],asof=last,estimated=estimate and cutoff>quote['day'],quote_id=quote['id'])
     def save_value(self,ident,day,native_value,fx_rate=1,origin='Conferido'):
@@ -72,7 +72,7 @@ class InvestmentBook:
         if not math.isfinite(fx_rate) or fx_rate<=0:raise ValueError('Cotação inválida.')
         if round(native_amount*fx_rate)>10**13:raise ValueError('Valor convertido acima do limite suportado.')
         amount=round(native_amount*fx_rate);state=self.state(ident,day)
-        if kind=='Resgate' and (not state or amount>state['value']):raise ValueError('Resgate acima do saldo conhecido. Confira o saldo antes de registrar.')
+        if kind=='Resgate' and (not state or (amount>state['value'] if p['currency']=='BRL' else native_amount>state['native_value'])):raise ValueError('Resgate acima do saldo conhecido. Confira o saldo antes de registrar.')
         if kind=='Aporte' and p['maturity'] and p['maturity']<day and p['asset_type'] in ['CDB','LCI','LCA']:raise ValueError('O título já venceu. Cadastre o novo contrato para novos aportes.')
         if included_in_balance and not tx_id and create_tx:raise ValueError('Saldo já incluído só se aplica a lançamento existente.')
         linked_existing=bool(tx_id);latest=self.s.rows('SELECT * FROM investment_values WHERE position_id=? AND day>=? ORDER BY day DESC LIMIT 1',(ident,day));included_value_id=latest[0]['id'] if included_in_balance and latest and latest[0]['day']==day else None
@@ -116,4 +116,4 @@ class InvestmentBook:
         if self.s.rows('SELECT COUNT(*) n FROM investment_values WHERE position_id=?',(quote['position_id'],))[0]['n']<=1:raise ValueError('Mantenha um saldo inicial. Você pode corrigir seu valor ou sua data.')
         with self.s.db:self.s.db.execute('DELETE FROM investment_values WHERE id=?',(ident,))
         self.sync(quote['position_id'])
-  
+    
