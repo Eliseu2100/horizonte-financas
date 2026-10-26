@@ -12,7 +12,8 @@ def launch():
         if '--smoke-test' not in sys.argv:
             try:
                 from PySide6.QtWidgets import QApplication,QMessageBox
-                app=QApplication.instance() or QApplication(sys.argv);QMessageBox.critical(None,'Horizonte: falha ao iniciar','Detalhes salvos em: '+str(log))
+                app=QApplication.instance() or QApplication(sys.argv);QMessageBox.critical(None,'Elisei: falha ao iniciar','Detalhes salvos em: '+str(log))
             except Exception:pass
         sys.exit(1)
 if __name__=='__main__':launch()
+    
