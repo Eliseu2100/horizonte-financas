@@ -11,7 +11,7 @@ SQLite possui tabelas de lançamentos, posições históricas, carteira, orçame
 
 ## Definições
 
-Fluxo disponível = receitas − despesas − aportes + resgates. Transferências não alteram esse total. Esse fluxo não é patrimônio nem saldo bancário conciliado.
+Fluxo disponível = receitas − despesas em conta − aportes + resgates − pagamentos de fatura. Compras no cartão entram no consumo do mês de fatura, enquanto o pagamento reduz caixa e dívida sem duplicar o consumo. Transferências não alteram esse total. Esse fluxo não é patrimônio nem saldo bancário conciliado.
 
 Capacidade de aporte = receita média − despesa média dos últimos até três meses com dados, até a competência selecionada. Inclui registros a revisar preenchidos; o app sinaliza essa condição. Meses parciais ou registros ausentes limitam a qualidade da análise.
 
@@ -41,3 +41,13 @@ Saldo conferido em moeda nativa convertido para BRL + lançamentos confirmados n
 ## Backup automático
 
 Na abertura, a cada 30 minutos e no encerramento normal, grava uma cópia completa com nome por dia. Um arquivo temporário é produzido pela API SQLite e substitui atomicamente a cópia do dia. Não remove dias antigos. A pasta padrão fica junto aos dados e pode ser trocada na interface. Perfil, foto e configurações são portáveis no mesmo arquivo. Sem agendador externo.
+
+
+## Evolução 0.2
+
+`workspace.py` organiza a janela e os novos fluxos. `design.py` centraliza temas, ícones próprios e gráficos nativos interativos. `ledger.py` implementa categorias, cartões, parcelas, pagamentos, agenda, comprovantes e conciliação CSV/OFX.
+
+Parcelas são divididas em centavos com distribuição exata do resto. A competência da primeira fatura pode ser ajustada. Dívida de cartão é descontada do patrimônio consolidado. Extratos usam chave estável por conta e identificador da origem; correspondências com lançamentos manuais exigem conciliação explícita.
+
+A versão do esquema é 2. Antes da primeira migração de banco 0.1, uma cópia é criada em backups. A restauração migra uma cópia candidata antes de substituir o banco em uso. O mesmo AppId do instalador permite atualizar sobre a 0.1. Dados ficam fora da pasta do programa. Um lock por banco impede duas instâncias simultâneas.
+  
