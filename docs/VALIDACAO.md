@@ -21,3 +21,13 @@ O usuário consegue lançar gastos sem planilha, visualizar seus efeitos, defini
 Testes adicionais locais: cadastro real de conta, movimentos de saldo, posição em USD, perfil, PDF e restauração/portabilidade de banco com perfil e contas.
 
 No empacotamento, foi corrigida uma seleção incompatível de ICU: o build utiliza a ICU nativa do Windows 10 1903 ou posterior. O launcher registra falhas de inicialização em arquivo.
+
+
+## Validação da versão 0.2.0
+
+17 testes automatizados passaram: sete do domínio original, sete de cartões/conciliação/migração e três de interface. A interface foi renderizada nas 14 telas, em temas claro/escuro e tamanhos 1440×950 e 1000×680. Os formulários reais foram exercitados para recorrência e validação, além da paleta de ações e navegação.
+
+O executável PyInstaller abriu e renderizou todas as telas. O instalador 0.1 foi executado em pasta isolada; o instalador 0.2 foi aplicado sobre essa mesma instalação. Todos os registros originais das tabelas financeiras e um marcador de configuração foram preservados. O banco migrou para esquema 2, com backup anterior criado. O executável atualizado renderizou as 14 telas. A desinstalação de teste preservou o banco. O pacote público não contém seed.sqlite pessoal.
+
+A validação não equivale a homologação em todas as versões do Windows. O aplicativo não tem assinatura digital de editor. O build público em Actions repete testes, smoke test do executável e compilação do instalador.
+  
