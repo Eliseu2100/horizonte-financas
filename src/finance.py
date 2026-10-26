@@ -24,6 +24,14 @@ def position_projection(p, deadline, cdi=10.0, inflation=4.0):
     if 'Cripto' in p['asset_type'] or p['asset_type']=='Bitcoin':warnings.append('Cotação futura de cripto não prevista.')
     return dict(gross=gross,net=net,tax=tax,available=available,warnings=warnings)
 
+def investment_projection(store,p,deadline,cdi=10.0,inflation=4.0):
+    from investments import InvestmentBook
+    result=position_projection(p,deadline,cdi,inflation);state=InvestmentBook(store).state(p['id'],deadline,True,cdi,inflation)
+    if state:
+        result['gross']=state['value'];base=p['principal'] if p['principal'] is not None else p['value'];result['tax']=round(max(0,state['value']-base)*(p.get('tax') or 0)/100);result['net']=result['gross']-result['tax']
+    else:result.update(gross=0,net=0,tax=0,available=False);result['warnings'].append('Sem saldo conhecido até a data solicitada.')
+    return result
+
 def recent_capacity(store,period):
     periods=[p for p in store.periods() if p<=period and (store.rows("SELECT 1 FROM tx WHERE period=? AND amount IS NOT NULL AND status!='Previsto'",(p,)) or store.rows('SELECT 1 FROM card_items WHERE period=?',(p,)))][-3:]
     if not periods:return dict(income=0,expense=0,capacity=0,periods=[])
@@ -35,7 +43,7 @@ def goal_assessment(store,g,period,today=None):
     links=json_ids(store.setting('goal-links-'+str(g['id']),'[]'));positions=[p for p in store.rows('SELECT * FROM positions') if p['id'] in links]
     cdi=float(store.setting('assumed-cdi','10'));inflation=float(store.setting('assumed-inflation','4'))
     if positions:
-        results=[position_projection(p,g['deadline'],cdi,inflation) for p in positions];base=sum(p['value'] for p in positions);future=sum(r['net'] for r in results if r['available']);unavailable=sum(r['net'] for r in results if not r['available']);warnings=[p['name']+': '+w for p,r in zip(positions,results) for w in r['warnings']]
+        results=[investment_projection(store,p,g['deadline'],cdi,inflation) for p in positions];base=sum(p['value'] for p in positions);future=sum(r['net'] for r in results if r['available']);unavailable=sum(r['net'] for r in results if not r['available']);warnings=[p['name']+': '+w for p,r in zip(positions,results) for w in r['warnings']]
     else:base=g['saved'];future=forecast(base,0,g['annual'],months)[-1];unavailable=0;warnings=[]
     r=(1+g['annual']/100)**(1/12)-1;factor=((1+r)**months-1)/r if abs(r)>1e-12 else months
     need=max(0,round((g['target']-future)/factor)) if factor else max(0,g['target']-future)
