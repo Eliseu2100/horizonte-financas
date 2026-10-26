@@ -7,6 +7,9 @@ from PySide6.QtGui import QAction,QKeySequence,QFont,QPixmap,QPainter,QColor,QPa
 from PySide6.QtWidgets import *
 import app as ui
 from core import *
+from widgets import DateField,MonthField,ResponsiveCards,FlowLayout,ChoiceBox
+ui.QComboBox=ChoiceBox
+QComboBox=ChoiceBox
 from ledger import Ledger,add_month,month_day
 from finance import allocation,goal_assessment,recent_capacity,insights
 from design import theme,tokens,icon,InteractiveChart,COLORS
@@ -18,14 +21,16 @@ class SmartForm(ui.Form):
         super().__init__(title,fields,parent)
         for key,caption,value,options in fields:
             old=self.inputs[key];new=None
-            if not options and key in ['day','deadline','purchase_day'] and value:
-                new=QDateEdit();new.setCalendarPopup(True);new.setDisplayFormat('dd/MM/yyyy');new.setDateRange(QDate(1900,1,1),QDate(2200,12,31));new.setDate(QDate.fromString(str(value),'yyyy-MM-dd'))
+            if not options and key in ['day','deadline','purchase_day','maturity']:
+                new=DateField(optional=key=='maturity');new.set_iso(value or '')
+            elif not options and key=='first_period':
+                new=MonthField(value or None,optional=True)
             elif not options and key in ['closing_day','due_day','installments']:
                 new=QSpinBox();new.setRange(1,120 if key=='installments' else 31);new.setValue(int(value or 1))
             if new:
                 new.setAccessibleName(caption);old.parentWidget().layout().replaceWidget(old,new);old.hide();old.deleteLater();self.inputs[key]=new
     def values(self):
-        return {k:(w.date().toString('yyyy-MM-dd') if isinstance(w,QDateEdit) else str(w.value()) if isinstance(w,QSpinBox) else w.currentText() if isinstance(w,QComboBox) else w.text()).strip() for k,w in self.inputs.items()}
+        return {k:(w.iso() if isinstance(w,DateField) else str(w.value()) if isinstance(w,QSpinBox) else w.currentText() if isinstance(w,QComboBox) else w.text()).strip() for k,w in self.inputs.items()}
 
 ui.Form=SmartForm
 Form=SmartForm
@@ -38,22 +43,35 @@ class EntryDialog(QDialog):
         self.description=QLineEdit(self.data.get('description',''));self.amount=QLineEdit('' if self.data.get('amount') is None else str(self.data['amount']/100).replace('.',','));self.amount.setPlaceholderText('0,00');self.kind=QComboBox();self.kind.addItems([k for k in KINDS if k!='Pagamento de fatura']);self.kind.setCurrentText(self.data.get('kind','Despesa'))
         self.category=QComboBox();self.category.addItems(sorted(set(store.category_names()+[self.data.get('category','Outros')])));self.category.setCurrentText(self.data.get('category','Outros'));self.account=QComboBox();self.account.addItems(['']+[r['name'] for r in store.rows('SELECT name FROM accounts ORDER BY name')]);self.account.setEditable(False)
         if self.data.get('account') and self.account.findText(self.data['account'])<0:self.account.addItem(self.data['account'])
-        self.account.setCurrentText(self.data.get('account',''));self.target=QComboBox();self.target.addItems(['']+[r['name'] for r in store.rows('SELECT name FROM accounts ORDER BY name')]);self.target.setCurrentText(self.data.get('target_account',''))
-        self.day=QDateEdit();self.day.setCalendarPopup(True);self.day.setDisplayFormat('dd/MM/yyyy');self.day.setDateRange(QDate(1900,1,1),QDate(2200,12,31));self.day.setDate(QDate.fromString(self.data.get('day') or month_day(period,date.today().day),'yyyy-MM-dd'));self.unknown=QCheckBox('Sem data informada');self.unknown.setChecked(bool(data and not data.get('day')));self.day.setEnabled(not self.unknown.isChecked());self.unknown.toggled.connect(lambda checked:self.day.setEnabled(not checked))
-        self.status=QComboBox();self.status.addItems(['Confirmado','Previsto','A revisar']);self.status.setCurrentText(self.data.get('status','Previsto' if self.day.date()>QDate.currentDate() else 'Confirmado'));self.due=QDateEdit();self.due.setCalendarPopup(True);self.due.setDisplayFormat('dd/MM/yyyy');self.due.setDate(QDate.fromString(self.data.get('due_day') or self.data.get('day') or date.today().isoformat(),'yyyy-MM-dd'))
-        self.period=QLineEdit(self.data.get('period',period));self.tags=QLineEdit(self.data.get('tags',''));self.tags.setPlaceholderText('Ex.: casa, trabalho');self.note=QLineEdit(self.data.get('note',''));self.repeat=QSpinBox();self.repeat.setRange(1,60);self.repeat.setValue(1);self.repeat.setSuffix(' meses')
-        for name,widget in [('Descrição',self.description),('Valor em reais',self.amount),('Tipo',self.kind),('Categoria',self.category),('Conta',self.account),('Destino da transferência',self.target),('Data',self.day),('',self.unknown),('Situação',self.status),('Vencimento',self.due)]:
+        self.account.setCurrentText(self.data.get('account',''));self.account.setPlaceholderText('Selecione uma conta');self.account.setCurrentIndex(self.account.currentIndex() if self.data.get('account') else -1);self.target=QComboBox();self.target.addItems(['']+[r['name'] for r in store.rows('SELECT name FROM accounts ORDER BY name')]);self.target.setCurrentText(self.data.get('target_account',''));self.target.setPlaceholderText('Selecione a conta de destino');self.target.setCurrentIndex(self.target.currentIndex() if self.data.get('target_account') else -1)
+        self.day=DateField();self.day.setCalendarPopup(True);self.day.setDisplayFormat('dd/MM/yyyy');self.day.setDateRange(QDate(1900,1,1),QDate(2200,12,31));self.day.setDate(QDate.fromString(self.data.get('day') or month_day(period,date.today().day),'yyyy-MM-dd'));self.unknown=QCheckBox('Sem data informada');self.unknown.setChecked(bool(data and not data.get('day')));self.day.setEnabled(not self.unknown.isChecked());self.unknown.toggled.connect(lambda checked:self.day.setEnabled(not checked))
+        self.status=QComboBox();self.status.addItems(['Confirmado','Previsto','A revisar']);self.status.setCurrentText(self.data.get('status','Previsto' if self.day.date()>QDate.currentDate() else 'Confirmado'));self.due=DateField();self.due.setCalendarPopup(True);self.due.setDisplayFormat('dd/MM/yyyy');self.due.setDate(QDate.fromString(self.data.get('due_day') or self.data.get('day') or self.day.date().toString('yyyy-MM-dd'),'yyyy-MM-dd'))
+        self.period=MonthField(self.data.get('period',period));self.independent_period=QCheckBox('Manter competência independente da data');self.independent_period.setChecked(bool(data and self.data.get('day') and self.data.get('period')!=self.data['day'][:7]));self.tags=QLineEdit(self.data.get('tags',''));self.tags.setPlaceholderText('Ex.: casa, trabalho');self.note=QLineEdit(self.data.get('note',''));self.repeat=QSpinBox();self.repeat.setRange(1,60);self.repeat.setValue(1);self.repeat.setSuffix(' meses')
+        for name,widget in [('Descrição',self.description),('Valor em reais',self.amount),('Tipo',self.kind),('Categoria',self.category),('Conta',self.account),('Destino da transferência',self.target),('Data',self.day),('',self.unknown),('Situação',self.status),('Vencimento',self.due),('Competência (mês/ano)',self.period),('',self.independent_period)]:
             widget.setAccessibleName(name or 'Sem data informada');form.addRow(name,widget)
+        account_note=label('A conta movimenta o saldo cadastrado. Para transferir, escolha o tipo Transferência. Use Previsto para mostrar o vencimento na agenda.','small',True);form.addRow(account_note);create_account=button('+ Cadastrar conta',self.create_account);form.addRow('',create_account)
         advanced=QGroupBox('Detalhes e recorrência');advanced.setCheckable(True);advanced.setChecked(bool(data));advanced_layout=QVBoxLayout(advanced);advanced_content=QWidget();af=QFormLayout(advanced_content);advanced_layout.addWidget(advanced_content)
-        for name,widget in [('Competência AAAA-MM',self.period),('Etiquetas',self.tags),('Observação',self.note),('Repetir',self.repeat)]:widget.setAccessibleName(name);af.addRow(name,widget)
+        for name,widget in [('Etiquetas',self.tags),('Observação',self.note),('Repetir',self.repeat)]:widget.setAccessibleName(name);af.addRow(name,widget)
         self.repeat.setEnabled(not bool(data));form.addRow(advanced);self.details=advanced
         advanced_content.setVisible(advanced.isChecked());advanced.toggled.connect(advanced_content.setVisible)
         self.error=label('','negative',True);layout.addWidget(self.error);box=QDialogButtonBox(QDialogButtonBox.Save|QDialogButtonBox.Cancel);box.button(QDialogButtonBox.Save).setText('Salvar lançamento');box.button(QDialogButtonBox.Cancel).setText('Cancelar');box.accepted.connect(self.validate);box.rejected.connect(self.reject);layout.addWidget(box)
         self.kind.currentTextChanged.connect(self.adjust);self.status.currentTextChanged.connect(self.adjust)
-        if not data:self.day.dateChanged.connect(lambda d:self.period.setText(d.toString('yyyy-MM')))
+        self.last_day=self.day.date();self.day.dateChanged.connect(self.sync_dates)
         self.adjust();self.description.setFocus()
+    def create_account(self):
+        owner=self.parentWidget();before={r['name'] for r in self.s.rows('SELECT name FROM accounts')}
+        if not hasattr(owner,'edit_account'):return
+        owner.edit_account()
+        names=[r['name'] for r in self.s.rows('SELECT name FROM accounts ORDER BY name')];added=set(names)-before
+        for combo in [self.account,self.target]:
+            selected=combo.currentText();combo.clear();combo.addItems(['']+names);combo.setCurrentText(selected if selected in names else '')
+        if added:self.account.setCurrentText(sorted(added)[0])
+    def sync_dates(self,selected):
+        if not self.independent_period.isChecked():self.period.setText(selected.toString('yyyy-MM'))
+        if self.due.date()==self.last_day:self.due.setDate(selected)
+        self.last_day=selected
     def adjust(self,*_):
-        self.target.setEnabled(self.kind.currentText()=='Transferência');self.category.setEnabled(self.kind.currentText()!='Transferência');self.due.setEnabled(self.status.currentText()=='Previsto')
+        self.target.parentWidget().layout().setRowVisible(self.target,self.kind.currentText()=='Transferência');self.category.setEnabled(self.kind.currentText()!='Transferência');self.due.setEnabled(True)
     def validate(self):
         try:
             if not self.description.text().strip():raise ValueError('Informe uma descrição para reconhecer este lançamento.')
@@ -63,7 +81,7 @@ class EntryDialog(QDialog):
             from ledger import check_period
             check_period(self.period.text().strip())
             if self.kind.currentText()=='Transferência' and (not self.account.currentText() or not self.target.currentText() or self.account.currentText()==self.target.currentText()):raise ValueError('Escolha contas diferentes para origem e destino.')
-            self.result_data=dict(description=self.description.text().strip(),amount=amount,kind=self.kind.currentText(),category=self.category.currentText(),account=self.account.currentText(),target_account=self.target.currentText(),day=None if self.unknown.isChecked() else self.day.date().toString('yyyy-MM-dd'),period=self.period.text().strip(),status=self.status.currentText(),due_day=self.due.date().toString('yyyy-MM-dd') if self.status.currentText()=='Previsto' else self.data.get('due_day'),tags=', '.join(x.strip() for x in self.tags.text().split(',') if x.strip()),note=self.note.text().strip(),series_key=self.data.get('series_key',''),occurrence_index=self.data.get('occurrence_index',1));self.accept()
+            self.result_data=dict(description=self.description.text().strip(),amount=amount,kind=self.kind.currentText(),category=self.category.currentText(),account=self.account.currentText(),target_account=self.target.currentText(),day=None if self.unknown.isChecked() else self.day.date().toString('yyyy-MM-dd'),period=self.period.text().strip(),status=self.status.currentText(),due_day=self.due.date().toString('yyyy-MM-dd'),tags=', '.join(x.strip() for x in self.tags.text().split(',') if x.strip()),note=self.note.text().strip(),series_key=self.data.get('series_key',''),occurrence_index=self.data.get('occurrence_index',1));self.accept()
         except ValueError as e:self.error.setText(str(e))
 
 class ModernWindow(ui.Window):
@@ -77,7 +95,7 @@ class ModernWindow(ui.Window):
             for name in names:
                 b=QPushButton(name);b.setObjectName('nav');b.setCheckable(True);b.setIcon(icon(name));b.setAccessibleName(name);b.clicked.connect(lambda _,n=name:self.go(n));navlayout.addWidget(b);self.nav[name]=b
         navlayout.addStretch();sc.setWidget(navwidget);sl.addWidget(sc,1);self.avatar=QLabel();self.avatar.setFixedSize(40,40);self.profile_name=label(store.setting('display-name','Meu perfil'));foot=QHBoxLayout();foot.addWidget(self.avatar);foot.addWidget(self.profile_name,1);sl.addLayout(foot);self.update_avatar();row.addWidget(self.sidebar)
-        area=QWidget();al=QVBoxLayout(area);al.setContentsMargins(30,20,30,20);al.setSpacing(20);self.top=QHBoxLayout();toggle=button('Painel lateral',self.toggle_sidebar);toggle.setToolTip('Mostrar ou ocultar navegação • Ctrl+\\');self.top.addWidget(toggle);self.top.addWidget(button('Buscar ações  Ctrl+K',self.command_palette));self.top.addStretch();self.top.addWidget(button('‹',lambda:self.change_month(-1)));self.period=QComboBox();self.period.setMinimumWidth(170);self.refresh_periods();self.period.currentIndexChanged.connect(self.render);self.top.addWidget(self.period);self.top.addWidget(button('›',lambda:self.change_month(1)));self.top.addWidget(button('+ Lançamento',self.edit_tx,True));al.addLayout(self.top)
+        area=QWidget();al=QVBoxLayout(area);al.setContentsMargins(30,20,30,20);al.setSpacing(20);self.top=FlowLayout();toggle=button('Painel lateral',self.toggle_sidebar);toggle.setToolTip('Mostrar ou ocultar navegação • Ctrl+\\');self.top.addWidget(toggle);self.top.addWidget(button('Buscar ações  Ctrl+K',self.command_palette));self.top.addStretch();self.top.addWidget(button('‹',lambda:self.change_month(-1)));self.period=QComboBox();self.period.setMinimumWidth(170);self.refresh_periods();self.period.currentIndexChanged.connect(self.render);self.top.addWidget(self.period);self.top.addWidget(button('›',lambda:self.change_month(1)));self.top.addWidget(button('+ Lançamento',self.edit_tx,True));al.addLayout(self.top)
         self.scroll=QScrollArea();self.scroll.setWidgetResizable(True);self.scroll.setFrameShape(QFrame.NoFrame);al.addWidget(self.scroll);row.addWidget(area,1);self.make_menus();self.render();self.backup_timer=QTimer(self);self.backup_timer.timeout.connect(self.automatic_backup);self.backup_timer.start(30*60*1000);QTimer.singleShot(1000,self.automatic_backup);self.statusBar().showMessage('Dados locais • Horizonte '+ui.VERSION)
     def apply_theme(self):
         dark=self.s.setting('theme','light')=='dark';application=QApplication.instance();application.setProperty('dark',dark);application.setStyleSheet(theme(dark));t=tokens(dark);palette=QPalette()
@@ -93,7 +111,6 @@ class ModernWindow(ui.Window):
         menu.addSeparator();a=QAction('Sair',self);a.setShortcut('Ctrl+Q');a.triggered.connect(self.close);menu.addAction(a);view=self.menuBar().addMenu('Exibir')
         a=QAction('Mostrar painel lateral',self);a.setShortcut('Ctrl+\\');a.triggered.connect(self.toggle_sidebar);view.addAction(a);a=QAction('Buscar ações',self);a.setShortcut('Ctrl+K');a.triggered.connect(self.command_palette);view.addAction(a)
         a=QAction('Aparência escura',self);a.setCheckable(True);a.setChecked(self.s.setting('theme')=='dark');a.triggered.connect(lambda value:self.set_theme(value));view.addAction(a)
-        a=QAction('Reduzir movimento',self);a.setCheckable(True);a.setChecked(self.s.setting('reduce-motion')=='1');a.triggered.connect(lambda value:self.s.set('reduce-motion','1' if value else '0'));view.addAction(a)
     def set_theme(self,dark):self.s.set('theme','dark' if dark else 'light');self.apply_theme();self.render()
     def toggle_sidebar(self):self.sidebar.setVisible(not self.sidebar.isVisible())
     def notify(self,text):self.statusBar().showMessage(text,6000)
@@ -112,51 +129,61 @@ class ModernWindow(ui.Window):
         if idx<0:self.period.addItem(month_label(period),period);idx=self.period.findData(period)
         self.period.setCurrentIndex(idx)
     def render(self,*_):
+        if getattr(self,'_rendered_page',None)=='Lançamentos' and self.page=='Lançamentos':
+            self.tx_filter_state=(self.search.text(),self.kind_filter.currentText(),self.status_filter.currentText(),self.account_filter.currentText(),self.category_filter.currentText())
+        elif self.page=='Lançamentos':self.tx_filter_state=None
+        self._rendered_page=self.page
         for n,b in self.nav.items():b.setChecked(n==self.page)
         w=QWidget();self.body=QVBoxLayout(w);self.body.setContentsMargins(0,0,0,0);self.body.setSpacing(20);self.body.addWidget(label(self.page,'title'));self.p=self.period.currentData() or date.today().strftime('%Y-%m')
         if self.s.setting('demo')=='1':self.body.addWidget(label('Demonstração • dados fictícios','small'))
         views={'Visão geral':self.overview,'Lançamentos':self.transactions,'Agenda':self.agenda,'Cartões':self.cards_page,'Categorias':self.categories_page,'Contas bancárias':self.accounts,'Orçamentos':self.budgets,'Investimentos':self.portfolio,'Metas e câmbio':self.goals,'Simulações':self.simulations,'Análises':self.analysis,'Relatórios':self.reports,'Perfil':self.profile,'Dados e backup':self.data_page};views[self.page]();self.body.addStretch();self.scroll.setWidget(w)
         due=[x for x in self.ledger.due() if x['day']<=date.today().isoformat()];self.nav['Agenda'].setText('Agenda'+('  '+str(len(due)) if due else ''))
     def go(self,name):
-        old=self.page;self.page=name;self.render()
-        if old!=name and self.s.setting('reduce-motion')!='1' and QApplication.platformName()!='offscreen':
-            effect=QGraphicsOpacityEffect(self.scroll.widget());self.scroll.widget().setGraphicsEffect(effect);self.anim=QPropertyAnimation(effect,b'opacity');self.anim.setDuration(130);self.anim.setStartValue(.55);self.anim.setEndValue(1.0);self.anim.start()
+        # Efeitos de opacidade no conteúdo rolável causavam artefatos nas tabelas em Windows.
+        if self.anim:self.anim.stop()
+        self.page=name;self.render()
     def overview(self):
         sm=self.s.summary(self.p);assets=sum(allocation(self.s).values());debt=self.ledger.outstanding();self.hint(month_label(self.p)+' • O essencial para decidir seu próximo passo.')
         self.metrics([('Patrimônio líquido',money(assets-debt),'Ativos menos parcelas de cartão em aberto'),('Receitas',money(sm['Receita']),'Valores confirmados ou a revisar'),('Despesas do mês',money(sm['Despesa']),'Consumo em conta + compras na fatura'),('Fluxo de caixa',money(sm['livre']),'Entradas menos saídas efetivas registradas')])
-        due=[x for x in self.ledger.due() if x['day']<=(date.today()+timedelta(days=7)).isoformat()];row=QHBoxLayout();a,l=card('Atrasados e próximos 7 dias');l.addWidget(label(money(sum(x['amount'] for x in due if x['kind']!='Receita')),'metric'));l.addWidget(label(str(len(due))+' contas ou faturas para conferir','subtitle'));l.addWidget(button('Ver agenda',lambda:self.go('Agenda')));row.addWidget(a)
-        g=self.s.rows('SELECT * FROM goals ORDER BY id LIMIT 1')[0];assessment=goal_assessment(self.s,g,self.p);a,l=card(g['name']);l.addWidget(label(money(assessment['base'])+' de '+money(g['target']),'section'));progress=QProgressBar();progress.setTextVisible(False);progress.setRange(0,1000);progress.setValue(min(1000,round(assessment['base']/g['target']*1000)));l.addWidget(progress);l.addWidget(label('Aporte calculado: '+money(assessment['need'])+'/mês','subtitle'));l.addWidget(button('Entender minha meta',lambda:self.go('Metas e câmbio')));row.addWidget(a);row.setStretch(0,1);row.setStretch(1,1);self.body.addLayout(row)
+        due=[x for x in self.ledger.due() if x['day']<=(date.today()+timedelta(days=7)).isoformat()];row=QHBoxLayout();a,l=card('Atrasados e próximos 7 dias');l.addWidget(label(money(sum((x['amount'] or 0) for x in due if x['kind'] not in ['Receita','Resgate'])),'metric'));l.addWidget(label(str(len(due))+' contas ou faturas para conferir','subtitle'));l.addWidget(button('Ver agenda',lambda:self.go('Agenda')));row.addWidget(a)
+        g=self.s.rows('SELECT * FROM goals ORDER BY id LIMIT 1')[0];assessment=goal_assessment(self.s,g,self.p);a,l=card(g['name']);l.addWidget(label(money(assessment['base'])+' de '+money(g['target']),'section'));progress=QProgressBar();progress.setTextVisible(False);progress.setRange(0,1000);progress.setValue(min(1000,max(0,round(assessment['base']/max(1,g['target'])*1000))));l.addWidget(progress);l.addWidget(label('Aporte calculado: '+money(assessment['need'])+'/mês','subtitle'));l.addWidget(button('Entender minha meta',lambda:self.go('Metas e câmbio')));row.addWidget(a);row.setStretch(0,1);row.setStretch(1,1);self.body.addLayout(row)
         row=QHBoxLayout();a,l=card('Receitas e despesas');periods=[p for p in self.s.periods() if p<=self.p][-6:];stats=[self.s.summary(p) for p in periods];l.addWidget(InteractiveChart('bar',[('Receitas',[x['Receita'] for x in stats]),('Despesas',[x['Despesa'] for x in stats])],[p[5:]+'/'+p[2:4] for p in periods]));row.addWidget(a,1)
-        a,l=card('Onde você gastou');spent=self.ledger.category_spend(self.p);chart=InteractiveChart('donut',[(k,[v]) for k,v in sorted(spent.items(),key=lambda x:x[1],reverse=True)],center='Despesas');chart.selected.connect(lambda _:self.go('Lançamentos'));l.addWidget(chart);l.addWidget(label('Passe o cursor para ver valores. Clique para abrir lançamentos.','small'));row.addWidget(a,1);self.body.addLayout(row)
+        a,l=card('Onde você gastou');spent=self.ledger.category_spend(self.p);chart=InteractiveChart('donut',[(k,[v]) for k,v in sorted(spent.items(),key=lambda x:x[1],reverse=True)],center='Despesas');chart.selected.connect(self.spending_detail);l.addWidget(chart);l.addWidget(label('Passe o cursor para ver valores. Clique para abrir lançamentos.','small'));row.addWidget(a,1);self.body.addLayout(row)
         a,l=card('Seu dinheiro hoje');groups=allocation(self.s);l.addWidget(InteractiveChart('donut',[(k,[v]) for k,v in groups.items() if v>0],center='Ativos'));l.addWidget(label('Patrimônio bruto: '+money(assets)+' • Cartões a quitar: '+money(debt),'small',True));self.body.addWidget(a)
         notes=insights(self.s,self.p)
         if notes:a,l=card(notes[0][0]);l.addWidget(label(notes[0][1],None,True));l.addWidget(button('Ver todas as análises',lambda:self.go('Análises')));self.body.addWidget(a)
     def transactions(self):
         self.hint('Registre o que entrou, saiu e ainda vai vencer. Compras de cartão ficam na tela Cartões; o pagamento da fatura aparece aqui sem duplicar o consumo.')
         row=QHBoxLayout();self.search=QLineEdit();self.search.setAccessibleName('Buscar lançamentos');self.search.setPlaceholderText('Buscar descrição, categoria, etiqueta ou conta');row.addWidget(self.search,1);row.addWidget(button('Importar extrato',self.import_statement_ui));self.body.addLayout(row)
-        row=QHBoxLayout();self.kind_filter=QComboBox();self.kind_filter.addItems(['Todos os tipos']+KINDS);self.status_filter=QComboBox();self.status_filter.addItems(['Todas as situações','Confirmado','Previsto','A revisar','Sem valor']);self.account_filter=QComboBox();self.account_filter.addItems(['Todas as contas']+[x['name'] for x in self.s.rows('SELECT name FROM accounts ORDER BY name')]);self.category_filter=QComboBox();self.category_filter.addItems(['Todas as categorias']+self.s.category_names())
+        row=FlowLayout();self.kind_filter=QComboBox();self.kind_filter.addItems(['Todos os tipos']+KINDS);self.status_filter=QComboBox();self.status_filter.addItems(['Todas as situações','Confirmado','Previsto','A revisar','Sem valor']);self.account_filter=QComboBox();self.account_filter.addItems(['Todas as contas']+[x['name'] for x in self.s.rows('SELECT name FROM accounts ORDER BY name')]);self.category_filter=QComboBox();self.category_filter.addItems(['Todas as categorias']+self.s.category_names())
         for name,w in [('Tipo',self.kind_filter),('Situação',self.status_filter),('Conta',self.account_filter),('Categoria',self.category_filter)]:w.setAccessibleName('Filtrar por '+name);row.addWidget(w)
         self.body.addLayout(row);self.tx_table=table(['Data','Descrição','Tipo','Categoria','Valor','Conta','Situação'],[]);self.tx_table.setMinimumHeight(360);self.tx_table.cellDoubleClicked.connect(lambda *_:self.edit_selected());self.tx_table.itemSelectionChanged.connect(self.tx_detail);self.body.addWidget(self.tx_table)
         row=QHBoxLayout()
         for text,fn in [('Editar',self.edit_selected),('Confirmar pagamento',self.confirm_selected),('Comprovantes',self.attachments_ui),('Excluir',self.delete_selected)]:row.addWidget(button(text,fn))
         row.addStretch();self.body.addLayout(row);self.tx_info=label('Selecione um lançamento para ver sua origem e observações.','small',True);self.body.addWidget(self.tx_info)
+        state=getattr(self,'tx_filter_state',None)
+        if state:
+            self.search.setText(state[0])
+            for combo,value in zip([self.kind_filter,self.status_filter,self.account_filter,self.category_filter],state[1:]):
+                if combo.findText(value)>=0:combo.setCurrentText(value)
         self.search.textChanged.connect(self.fill_transactions)
         for combo in [self.kind_filter,self.status_filter,self.account_filter,self.category_filter]:combo.currentTextChanged.connect(self.fill_transactions)
         self.fill_transactions()
     def fill_transactions(self,*_):
         query=self.search.text().casefold();kind=self.kind_filter.currentText();status=self.status_filter.currentText();account=self.account_filter.currentText();category=self.category_filter.currentText();rows=self.s.rows('SELECT * FROM tx WHERE period=? ORDER BY COALESCE(day,period) DESC,id DESC',(self.p,));self.tx_rows=[x for x in rows if (kind=='Todos os tipos' or x['kind']==kind) and (status=='Todas as situações' or (x['amount'] is None if status=='Sem valor' else x['status']==status)) and (account=='Todas as contas' or account==x['account'] or account==x['target_account']) and (category=='Todas as categorias' or category==x['category']) and query in ' '.join(str(x.get(k) or '') for k in ['description','category','account','tags','note']).casefold()]
-        self.tx_table.setRowCount(len(self.tx_rows))
+        self.tx_table.blockSignals(True);self.tx_table.clearSelection();self.tx_table.setRowCount(len(self.tx_rows))
         for i,x in enumerate(self.tx_rows):
             for j,v in enumerate([x['day'] or 'Sem data',x['description'],x['kind'],x['category'],money(x['amount']) if x['amount'] is not None else 'Sem valor',x['account'] or 'Não definida',x['status']]):item=QTableWidgetItem(str(v));item.setToolTip(x['note'] or '');self.tx_table.setItem(i,j,item)
-        self.tx_table.setAccessibleDescription(str(len(self.tx_rows))+' lançamentos encontrados')
+        self.tx_table.blockSignals(False);self.tx_info.setText(str(len(self.tx_rows))+' lançamentos encontrados. Selecione uma linha para editar, confirmar ou adicionar comprovantes.');self.tx_table.setAccessibleDescription(str(len(self.tx_rows))+' lançamentos encontrados')
     def tx_detail(self):
         i=self.tx_table.currentRow()
         if i<0 or i>=len(getattr(self,'tx_rows',[])):return
         row=self.tx_rows[i];self.tx_info.setText(' • '.join(str(x) for x in [row['source'] or 'Cadastro manual',row['tags'],row['note']] if x))
-    def edit_tx(self,data=None):
+    def edit_tx(self,data=None,scheduled=False):
         if not isinstance(data,dict):data=None
         if data and data['kind']=='Pagamento de fatura':QMessageBox.information(self,'Pagamento de fatura','Consulte ou desfaça esse registro na tela Cartões.');return
         f=EntryDialog(self.s,self.p,data,self)
+        if scheduled:f.status.setCurrentText('Previsto')
         if not f.exec():return
         try:
             values=f.result_data;repeat=f.repeat.value() if not data else 1
@@ -205,12 +232,13 @@ class ModernWindow(ui.Window):
                 except OSError as e:QMessageBox.warning(d,'Comprovante',str(e))
         row=QHBoxLayout();row.addWidget(button('Adicionar PDF ou imagem',add));row.addWidget(button('Salvar arquivo selecionado',export));layout.addLayout(row);layout.addWidget(label('Os comprovantes ficam no banco local e acompanham o backup. Limite: 10 MB por arquivo.','small',True));fill();d.exec()
     def agenda(self):
+        self.body.addWidget(button('+ Agendar compromisso',lambda:self.edit_tx(scheduled=True),True))
         self.hint('Contas previstas e faturas em aberto. Confirmar um registro aqui apenas atualiza o Horizonte; nenhum pagamento é enviado ao banco.')
-        all_items=self.ledger.due();self.agenda_rows=[x for x in all_items if x['day'][:7]<=self.p];overdue=[x for x in self.agenda_rows if x['status']=='Atrasado'];self.metrics([('Em atraso',money(sum(x['amount'] for x in overdue if x['kind']!='Receita')),str(len(overdue))+' registros para conferir'),('A pagar',money(sum(x['amount'] for x in self.agenda_rows if x['kind']!='Receita')),'Até o mês selecionado'),('A receber',money(sum(x['amount'] for x in self.agenda_rows if x['kind']=='Receita')),'Receitas previstas')])
-        self.agenda_table=table(['Vencimento','Descrição','Tipo','Valor','Conta','Situação'],[[x['day'],x['description'],x['kind'],money(x['amount']),x['account'],x['status']] for x in self.agenda_rows]);self.body.addWidget(self.agenda_table);self.body.addWidget(button('Registrar pagamento ou recebimento',self.agenda_confirm,True));self.hint('A agenda mostra o mês selecionado e atrasados anteriores. Previsões posteriores aparecem ao avançar o mês no topo.')
+        all_items=self.ledger.due();self.agenda_rows=[x for x in all_items if x['day'][:7]<=self.p];overdue=[x for x in self.agenda_rows if x['status']=='Atrasado'];self.metrics([('Em atraso',money(sum((x['amount'] or 0) for x in overdue if x['kind'] not in ['Receita','Resgate'])),str(len(overdue))+' registros para conferir'),('A pagar',money(sum((x['amount'] or 0) for x in self.agenda_rows if x['kind'] not in ['Receita','Resgate'])),'Até o mês selecionado'),('A receber',money(sum((x['amount'] or 0) for x in self.agenda_rows if x['kind'] in ['Receita','Resgate'])),'Receitas previstas')])
+        self.agenda_table=table(['Vencimento','Descrição','Tipo','Valor','Conta','Situação'],[[x['day'],x['description'],x['kind'],money(x['amount']) if x['amount'] is not None else 'Sem valor',x['account'],x['status']] for x in self.agenda_rows]);self.body.addWidget(self.agenda_table);self.agenda_table.cellDoubleClicked.connect(lambda *_:self.agenda_edit());self.body.addWidget(button('Editar compromisso',self.agenda_edit));self.body.addWidget(button('Registrar pagamento ou recebimento',self.agenda_confirm,True));self.hint('A agenda mostra o mês selecionado e atrasados anteriores. Previsões posteriores aparecem ao avançar o mês no topo.')
     def agenda_confirm(self):
         i=self.agenda_table.currentRow()
-        if i<0:return
+        if i<0:self.notify('Selecione um compromisso na tabela.');return
         row=self.agenda_rows[i]
         if row['type']=='card':self.pay_card(row['id'],row['period'])
         else:
@@ -237,17 +265,18 @@ class ModernWindow(ui.Window):
         self.render()
     def budgets(self):
         self.hint('Acompanhe consumo em conta e compras por fatura, sem contar o pagamento do cartão novamente.')
-        row=QHBoxLayout();row.addWidget(button('Definir limite',self.edit_budget,True));row.addWidget(button('Copiar mês anterior',self.copy_budgets_ui));row.addWidget(button('Remover limite',self.remove_budget));row.addStretch();self.body.addLayout(row)
+        row=FlowLayout();row.addWidget(button('Definir limite',self.edit_budget,True));row.addWidget(button('Copiar mês anterior',self.copy_budgets_ui));row.addWidget(button('Remover limite',self.remove_budget));row.addStretch();self.body.addLayout(row)
         budgets={r['category']:r['amount'] for r in self.s.rows('SELECT * FROM budgets WHERE period=?',(self.p,))};spent=self.ledger.category_spend(self.p);self.budget_rows=sorted(set(budgets)|set(spent));rows=[]
         for name in self.budget_rows:
-            limit=budgets.get(name);used=spent.get(name,0);rows.append([name,money(used),money(limit) if limit is not None else 'Não definido',money(limit-used) if limit is not None else '—','Acima do limite' if limit is not None and used>limit else 'Dentro do limite' if limit is not None else 'Definir limite'])
-        self.budget_table=table(['Categoria','Consumido','Limite','Disponível','Situação'],rows);self.body.addWidget(self.budget_table)
+            limit=budgets.get(name);used=self.ledger.budget_spend(self.p,name) if limit is not None else spent.get(name,0);rows.append([name,money(used),money(limit) if limit is not None else 'Não definido',money(limit-used) if limit is not None else '—','Acima do limite' if limit is not None and used>limit else 'Dentro do limite' if limit is not None else 'Definir limite'])
+        self.budget_table=table(['Categoria','Consumido','Limite','Disponível','Situação'],rows);self.budget_table.cellDoubleClicked.connect(lambda *_:self.edit_budget());self.body.addWidget(self.budget_table)
     def copy_budgets_ui(self):
         if self.s.rows('SELECT 1 FROM budgets WHERE period=?',(self.p,)) and QMessageBox.question(self,'Copiar limites','Substituir limites deste mês pelos do mês anterior?')!=QMessageBox.Yes:return
+        if not self.s.rows('SELECT 1 FROM budgets WHERE period=?',(add_month(self.p,-1),)):self.notify('O mês anterior não tem limites para copiar.');return
         self.ledger.copy_budgets(add_month(self.p,-1),self.p);self.render();self.notify('Limites copiados do mês anterior.')
     def cards_page(self):
         self.hint('Compras e parcelas são despesas de consumo. Registrar pagamento reduz a conta e a dívida, sem gerar outra despesa.')
-        cards=self.s.rows('SELECT * FROM cards WHERE archived=0 ORDER BY name');row=QHBoxLayout();row.addWidget(button('+ Cartão',self.edit_card,True))
+        cards=self.s.rows('SELECT * FROM cards WHERE archived=0 ORDER BY name');row=FlowLayout();row.addWidget(button('+ Cartão',self.edit_card,True))
         if not cards:
             self.body.addLayout(row);w,l=card('Organize seus cartões');l.addWidget(label('Cadastre nome, limite, fechamento e vencimento. Depois registre uma compra à vista ou parcelada para acompanhar as faturas futuras.',None,True));self.body.addWidget(w);return
         combo=QComboBox()
@@ -325,10 +354,12 @@ class ModernWindow(ui.Window):
         if not path:return
         if QMessageBox.question(self,'Restaurar backup','Substituir os dados atuais por esta cópia? Será feito um backup antes da restauração. Cópias da versão 0.1 são migradas automaticamente.')!=QMessageBox.Yes:return
         try:
-            previous=self.ledger.restore_backup(path);self.refresh_periods();self.profile_name.setText(self.s.setting('display-name','Meu perfil'));self.update_avatar();self.apply_theme();self.render();self.notify('Backup restaurado. Cópia anterior: '+str(previous))
+            previous=self.ledger.restore_backup(path);self._profile_draft={};self.refresh_periods();self.profile_name.setText(self.s.setting('display-name','Meu perfil'));self.update_avatar();self.apply_theme();self.render();self.notify('Backup restaurado. Cópia anterior: '+str(previous))
         except (ValueError,OSError,sqlite3.Error) as e:QMessageBox.warning(self,'Backup',str(e))
     def reports(self):
-        super().reports();w,l=card('Cartões e faturas');rows=[]
+        super().reports()
+        w,l=card('Despesas por categoria • '+month_label(self.p));spent=self.ledger.category_spend(self.p);l.addWidget(table(['Categoria','Consumo'],[[k,money(v)] for k,v in sorted(spent.items(),key=lambda x:x[1],reverse=True)]));self.body.addWidget(w)
+        w,l=card('Cartões e faturas');rows=[]
         for c in self.s.rows('SELECT * FROM cards ORDER BY name'):
             inv=self.ledger.invoice(c['id'],self.p);rows.append([c['name'],money(inv['total']),money(inv['paid']),money(inv['remaining']),inv['due_day']])
         l.addWidget(table(['Cartão','Compras','Pago','Em aberto','Vencimento'],rows));self.body.addWidget(w)
@@ -338,5 +369,125 @@ class ModernWindow(ui.Window):
         for title,text in insights(self.s,self.p):w,l=card(title);l.addWidget(label(text,None,True));self.body.addWidget(w)
         periods=cap['periods'];direct=round(sum(self.s.summary(p)['Despesa em conta'] for p in periods)/len(periods)) if periods else 0;rows=[];values=[];labels=[];cumulative=0
         for i in range(1,13):
-            period=add_month(self.p,i);planned={r['kind']:r['n'] or 0 for r in self.s.rows("SELECT kind,SUM(amount) n FROM tx WHERE period=? AND status='Previsto' GROUP BY kind",(period,))};revenue=planned.get('Receita',cap['income']);expense=planned.get('Despesa',direct);card_due=sum(self.ledger.invoice(c['id'],period)['remaining'] for c in self.s.rows('SELECT id FROM cards'));aporte=planned.get('Aporte',0);net=revenue-expense-card_due-aporte+planned.get('Resgate',0);cumulative+=net;values.append(cumulative);labels.append(period[2:]);rows.append([period,money(revenue),money(expense),money(card_due),money(aporte),money(net),money(cumulative)])
-        w,l=card('Compromissos dos próximos 12 meses');l.addWidget(InteractiveChart('line',[('Fluxo acumulado',values)],labels));l.addWidget(table(['Mês','Receita','Gastos em conta','Faturas conhecidas','Aportes','Fluxo','Acumulado'],rows));l.addWidget(label('Receitas e gastos diretos usam o previsto daquele tipo no mês, se existente; caso contrário usam a média histórica. Faturas incluem apenas compras já registradas. Aportes previstos são separados. O acumulado começa em zero e não é patrimônio.','small',True));self.body.addWidget(w)
+            period=add_month(self.p,i);planned={r['kind']:r['n'] or 0 for r in self.s.rows("SELECT kind,SUM(amount) n FROM tx WHERE period=? GROUP BY kind",(period,))};revenue=planned.get('Receita',cap['income']);expense=planned.get('Despesa',direct);card_due=sum(self.ledger.invoice(c['id'],period)['remaining'] for c in self.s.rows('SELECT id FROM cards'))+planned.get('Pagamento de fatura',0);aporte=planned.get('Aporte',0);net=revenue-expense-card_due-aporte+planned.get('Resgate',0);cumulative+=net;values.append(cumulative);labels.append(period[2:]);rows.append([period,money(revenue),money(expense),money(card_due),money(aporte),money(net),money(cumulative)])
+        w,l=card('Compromissos dos próximos 12 meses');l.addWidget(InteractiveChart('line',[('Fluxo acumulado',values)],labels));l.addWidget(table(['Mês','Receita','Gastos em conta','Faturas conhecidas','Aportes','Fluxo','Acumulado'],rows));l.addWidget(label('Receitas e gastos diretos usam os registros confirmados, a revisar e previstos daquele tipo no mês, se existentes; caso contrário usam a média histórica. Faturas incluem apenas compras já registradas. Aportes previstos são separados. O acumulado começa em zero e não é patrimônio.','small',True));self.body.addWidget(w)
+
+    def spending_detail(self,category):
+        d=QDialog(self);d.setWindowTitle('Gastos de '+category);d.resize(900,560);layout=QVBoxLayout(d);layout.addWidget(label(category+' • '+month_label(self.p),'section'))
+        direct=self.s.rows("SELECT day,description,amount,account FROM tx WHERE period=? AND category=? AND kind='Despesa' AND status!='Previsto'",(self.p,category))
+        purchases=self.s.rows('SELECT purchase_day AS day,description,amount,card_id FROM card_items WHERE period=? AND category=?',(self.p,category))
+        rows=[[x['day'] or 'Sem data',x['description'],money(x['amount']) if x['amount'] is not None else 'Sem valor',x['account'],'Em conta'] for x in direct]
+        rows += [[x['day'],x['description'],money(x['amount']),self.s.rows('SELECT name FROM cards WHERE id=?',(x['card_id'],))[0]['name'],'Compra no cartão'] for x in purchases]
+        layout.addWidget(table(['Data','Descrição','Valor','Conta / cartão','Origem'],rows));layout.addWidget(label('Consumo por competência. O pagamento da fatura não é contado novamente.','small',True));layout.addWidget(button('Fechar',d.accept));d.exec()
+    def agenda_edit(self):
+        i=self.agenda_table.currentRow()
+        if i<0:self.notify('Selecione um compromisso na tabela.');return
+        row=self.agenda_rows[i]
+        if row['type']=='card':
+            self.selected_card=row['id'];idx=self.period.findData(row['period'])
+            if idx>=0:self.period.setCurrentIndex(idx)
+            self.go('Cartões')
+        else:self.edit_tx(self.s.rows('SELECT * FROM tx WHERE id=?',(row['id'],))[0])
+    def edit_budget(self):
+        i=self.budget_table.currentRow();category=self.budget_rows[i] if i>=0 else 'Alimentação'
+        options=sorted(set(self.s.category_names()+[category]));existing=self.s.rows('SELECT amount FROM budgets WHERE category=? AND period=?',(category,self.p));amount=existing[0]['amount'] if existing else 0
+        f=Form('Orçamento de '+month_label(self.p),[('category','Categoria',category,options),('amount','Limite em R$',str(amount/100).replace('.',','),None)],self)
+        while f.exec():
+            try:
+                v=f.values();amount=cents(v['amount'])
+                if amount<0:raise ValueError('O limite deve ser positivo ou zero.')
+                with self.s.db:self.s.db.execute('INSERT OR REPLACE INTO budgets VALUES (?,?,?)',(v['category'],self.p,amount))
+                self.render();self.notify('Limite salvo para '+v['category']+'.');break
+            except (ValueError,sqlite3.Error) as e:f.error.setText(str(e))
+    def remove_budget(self):
+        i=self.budget_table.currentRow()
+        if i<0:self.notify('Selecione uma categoria na tabela.');return
+        category=self.budget_rows[i]
+        if not self.s.rows('SELECT 1 FROM budgets WHERE category=? AND period=?',(category,self.p)):self.notify('Esta categoria ainda não tem limite definido.');return
+        if QMessageBox.question(self,'Remover limite','Remover somente o limite de '+category+' neste mês? Os gastos serão preservados.')!=QMessageBox.Yes:return
+        with self.s.db:self.s.db.execute('DELETE FROM budgets WHERE category=? AND period=?',(category,self.p))
+        self.render();self.notify('Limite removido; gastos preservados.')
+    def metrics(self,items):
+        cards=[]
+        for title,value,note in items:
+            w,l=card();l.addWidget(label(title,'subtitle',True));l.addWidget(label(value,'metric',True));l.addWidget(label(note,'small',True));cards.append(w)
+        self.body.addWidget(ResponsiveCards(cards))
+    def report_document(self):
+        from html import escape
+        from PySide6.QtCore import QUrl
+        doc=ui.QTextDocument();doc.setDefaultFont(QFont('Segoe UI',9));parts=['<h1>Horizonte — relatório financeiro</h1>','<p>Competência: '+escape(month_label(self.p))+' • Gerado em '+date.today().isoformat()+'</p>']
+        if self.s.setting('demo')=='1':parts.append('<p>DEMONSTRAÇÃO: dados fictícios.</p>')
+        parts.append('<p>Ativos e dívidas representam a posição atual cadastrada; fluxos e consumo respeitam a competência selecionada.</p>')
+        index=0
+        for frame in self.scroll.widget().findChildren(QFrame):
+            if frame.objectName()!='card':continue
+            titles=[x.text() for x in frame.findChildren(QLabel) if x.objectName() in ['section','subtitle']];metrics=[x.text() for x in frame.findChildren(QLabel) if x.objectName()=='metric']
+            if titles:parts.append('<h2>'+escape(titles[0])+'</h2>')
+            for value in metrics:parts.append('<p><strong>'+escape(value)+'</strong></p>')
+            for t in frame.findChildren(QTableWidget):
+                parts.append('<table border="1" cellpadding="5" cellspacing="0" width="100%"><tr>'+''.join('<th>'+escape(t.horizontalHeaderItem(j).text())+'</th>' for j in range(t.columnCount()))+'</tr>')
+                for i in range(t.rowCount()):parts.append('<tr>'+''.join('<td>'+escape(t.item(i,j).text() if t.item(i,j) else '')+'</td>' for j in range(t.columnCount()))+'</tr>')
+                parts.append('</table><br>')
+            for chart in frame.findChildren(InteractiveChart):
+                image=chart.grab().toImage();key='chart'+str(index);index+=1;doc.addResource(ui.QTextDocument.ImageResource,QUrl(key),image);parts.append('<p><img src="'+key+'" width="680" height="'+str(round(image.height()*680/max(1,image.width())))+'" /></p>')
+        parts.append('<p>Pagamentos de fatura reduzem caixa e dívida; não duplicam o consumo. Projeções são hipóteses nominais. Confira saldos e datas no banco real.</p>');doc.setHtml(''.join(parts));return doc
+    def export_report(self):
+        from PySide6.QtPrintSupport import QPrinter
+        from PySide6.QtGui import QPageLayout
+        path,_=QFileDialog.getSaveFileName(self,'Relatório PDF','Horizonte-'+self.p+'.pdf','PDF (*.pdf)')
+        if not path:return
+        if not path.lower().endswith('.pdf'):path+='.pdf'
+        try:
+            printer=QPrinter(QPrinter.HighResolution);printer.setOutputFormat(QPrinter.PdfFormat);printer.setPageOrientation(QPageLayout.Landscape);printer.setOutputFileName(path);self.report_document().print_(printer);QMessageBox.information(self,'Relatório','PDF salvo com indicadores, seções, tabelas e gráficos.')
+        except Exception as e:QMessageBox.warning(self,'Relatório',str(e))
+    def automatic_backup(self):
+        if not getattr(self,'_closing',False):super().automatic_backup()
+    def closeEvent(self,event):
+        self._closing=True;self.backup_timer.stop()
+        if self.anim:self.anim.stop()
+        super().closeEvent(event)
+    def update_avatar(self):
+        from photos import circle_pixmap
+        data=self.s.setting('profile-photo');image=ui.QImage.fromData(base64.b64decode(data)) if data else ui.QImage()
+        if not image.isNull():self.avatar.setStyleSheet('');self.avatar.setPixmap(circle_pixmap(image,40))
+        else:
+            self.avatar.clear();self.avatar.setText((self.s.setting('display-name') or 'H')[:1].upper());self.avatar.setAlignment(Qt.AlignCenter);self.avatar.setStyleSheet('background:#dbeaff;border-radius:20px;color:#0056b3;font-size:20px;font-weight:600;')
+    def profile(self):
+        from photos import circle_pixmap
+        super().profile();frame=self.body.itemAt(self.body.count()-1).widget();self.profile_photo=next(x for x in frame.findChildren(QLabel) if x.width()==120 and x.height()==120);data=self.s.setting('profile-photo')
+        if data:self.profile_photo.setPixmap(circle_pixmap(ui.QImage.fromData(base64.b64decode(data)),120))
+        else:self.profile_photo.setStyleSheet('border:2px solid #0065d4;border-radius:60px;');self.profile_photo.setText('Sua foto')
+        frame.layout().addWidget(button('Ajustar enquadramento',self.reframe_photo))
+        for key,value in getattr(self,'_profile_draft',{}).items():self.profile_fields[key].setText(value)
+    def remember_profile(self):self._profile_draft={k:w.text() for k,w in self.profile_fields.items()}
+    def choose_photo(self):
+        from PySide6.QtGui import QImageReader
+        path,_=QFileDialog.getOpenFileName(self,'Foto de perfil','','Imagem (*.png *.jpg *.jpeg *.webp)')
+        if not path:return
+        try:
+            if Path(path).stat().st_size>10*1024*1024:raise ValueError('Escolha uma imagem de até 10 MB.')
+            reader=QImageReader(path);reader.setAutoTransform(True);size=reader.size()
+            if size.width()*size.height()>40000000:raise ValueError('Escolha uma foto de até 40 megapixels.')
+            if max(size.width(),size.height())>2048:size.scale(2048,2048,Qt.KeepAspectRatio);reader.setScaledSize(size)
+            image=reader.read()
+            if image.isNull():raise ValueError('Não foi possível abrir a imagem.')
+            self.crop_photo(image)
+        except (ValueError,OSError) as e:QMessageBox.warning(self,'Foto',str(e))
+    def reframe_photo(self):
+        data=self.s.setting('profile-photo-source') or self.s.setting('profile-photo')
+        if not data:self.choose_photo();return
+        self.crop_photo(ui.QImage.fromData(base64.b64decode(data)))
+    def crop_photo(self,image):
+        from photos import PhotoCropDialog
+        from PySide6.QtCore import QBuffer,QIODevice
+        if image.isNull():return
+        dialog=PhotoCropDialog(image,self)
+        if not dialog.exec():return
+        def encode(im):
+            buffer=QBuffer();buffer.open(QIODevice.WriteOnly);im.save(buffer,'PNG');return base64.b64encode(bytes(buffer.data())).decode('ascii')
+        self.remember_profile();self.s.set('profile-photo-source',encode(image));self.s.set('profile-photo',encode(dialog.preview.cropped()));self.update_avatar();self.render()
+    def remove_photo(self):
+        self.remember_profile();self.s.set('profile-photo','');self.s.set('profile-photo-source','');self.update_avatar();self.render()
+    def save_profile(self):
+        self.remember_profile();super().save_profile()
+    
