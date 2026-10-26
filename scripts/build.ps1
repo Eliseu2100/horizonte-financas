@@ -11,5 +11,8 @@ try {
     # Qt usa a ICU nativa do Windows. O coletor pode selecionar uma ICU com exports incompatíveis.
     $incompatibleIcu = Join-Path $projectRoot 'dist/Horizonte/_internal/icuuc.dll'
     if (Test-Path -LiteralPath $incompatibleIcu) { Remove-Item -LiteralPath $incompatibleIcu }
+    & $pythonExe scripts/collect_licenses.py
+    if ($LASTEXITCODE -ne 0) { throw 'Coleta de licenças falhou.' }
     Write-Host 'Executável disponível em dist/Horizonte/Horizonte.exe'
 } finally { Pop-Location }
+    
