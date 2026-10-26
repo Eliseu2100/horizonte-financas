@@ -1,13 +1,13 @@
 """Tokens visuais e gráficos nativos. Inspiração HIG adaptada ao Windows."""
 import math
 from PySide6.QtCore import Qt,QRectF,QPointF,Signal
-from PySide6.QtGui import QColor,QPainter,QPen,QFont,QPainterPath,QPixmap,QIcon
+from PySide6.QtGui import QColor,QPainter,QPen,QFont,QPainterPath,QPixmap,QIcon,QLinearGradient
 from PySide6.QtWidgets import QWidget,QApplication,QToolTip
 from core import money
-COLORS=['#007AFF','#30A07A','#AC6CDB','#E49527','#D8596A','#4E9AA9','#7B87A8','#A07855']
+COLORS=['#4169E1','#25A28A','#A675D8','#E3A34B','#DC7181','#4D9EB0','#7687AF','#AA896F']
 
 def tokens(dark=False):
-    return dict(bg='#101216',surface='#1b1e24',sidebar='#171a20',text='#f5f5f7',muted='#b2b9c6',line='#383e48',input='#242830',accent='#65adff',primary='#0067cf',selection='#243f5b',positive='#79d9b5',negative='#ff8998') if dark else dict(bg='#f5f5f7',surface='#ffffff',sidebar='#eceef2',text='#1d1d1f',muted='#59616f',line='#d5dae2',input='#ffffff',accent='#0065d4',primary='#0065d4',selection='#e1edff',positive='#13735a',negative='#b73349')
+    return dict(bg='#101216',surface='#1b1e24',sidebar='#171a20',text='#f5f5f7',muted='#b2b9c6',line='#383e48',input='#242830',accent='#65adff',primary='#0067cf',selection='#243f5b',positive='#79d9b5',negative='#ff8998') if dark else dict(bg='#f5f7fb',surface='#ffffff',sidebar='#eef2f8',text='#1d1d1f',muted='#59616f',line='#e0e6f0',input='#ffffff',accent='#315dd5',primary='#315dd5',selection='#e1edff',positive='#13735a',negative='#b73349')
 
 def theme(dark=False):
     t=tokens(dark)
@@ -17,7 +17,7 @@ QFrame#sidebar {background:$sidebar;border-right:1px solid $line;} QFrame#sideba
 QPushButton {background:$surface;border:1px solid $line;border-radius:8px;padding:9px 14px;font-weight:600;min-height:18px;} QPushButton:hover {background:$selection;border-color:$accent;} QPushButton:focus {border:2px solid $accent;} QPushButton:pressed {background:$selection;} QPushButton:disabled {color:$muted;background:$sidebar;}
 QPushButton#primary {background:$primary;color:white;border-color:$primary;} QPushButton#primary:hover {background:#0054b5;} QPushButton#nav {text-align:left;background:transparent;border:0;padding:9px 12px;font-weight:500;color:$text;} QPushButton#nav:hover {background:$selection;} QPushButton#nav:checked {background:$selection;color:$accent;font-weight:600;}
 QLabel#title {font-size:29px;font-weight:700;color:$text;} QLabel#subtitle {color:$muted;} QLabel#small {font-size:12px;color:$muted;} QLabel#metric {font-size:28px;font-weight:600;color:$text;} QLabel#section {font-size:18px;font-weight:600;color:$text;} QLabel#positive {color:$positive;font-weight:600;} QLabel#negative {color:$negative;font-weight:600;}
-QFrame#card {background:$surface;border:1px solid $line;border-radius:16px;} QFrame#banner {background:$selection;border:1px solid $line;border-radius:12px;}
+QFrame#card {background:$surface;border:1px solid $line;border-radius:18px;} QFrame#banner {background:$selection;border:1px solid $line;border-radius:12px;}
 QLineEdit,QComboBox,QDateEdit,QSpinBox,QDoubleSpinBox,QTextEdit,QListWidget {background:$input;border:1px solid $line;border-radius:8px;padding:8px;selection-background-color:$primary;selection-color:white;} QLineEdit:focus,QComboBox:focus,QDateEdit:focus,QSpinBox:focus {border:2px solid $accent;} QComboBox::drop-down {width:24px;border:0;} QComboBox QAbstractItemView {background:$surface;color:$text;selection-background-color:$selection;selection-color:$text;}
 QTableWidget {background:$surface;border:0;gridline-color:$line;selection-background-color:$selection;selection-color:$text;alternate-background-color:$bg;} QTableWidget::item {padding:8px;} QHeaderView::section {background:$surface;color:$muted;padding:11px;border:0;border-bottom:1px solid $line;font-weight:600;} QProgressBar {background:$sidebar;border:0;border-radius:4px;max-height:8px;} QProgressBar::chunk {background:$primary;border-radius:4px;}
 QScrollBar:vertical {width:9px;background:transparent;} QScrollBar::handle:vertical {background:$line;border-radius:4px;min-height:32px;} QScrollBar::add-line:vertical,QScrollBar::sub-line:vertical {height:0;} QCheckBox {spacing:8px;} QCheckBox::indicator {width:17px;height:17px;} QTabWidget::pane {border:0;} QTabBar::tab {background:$sidebar;padding:9px 18px;border-radius:6px;margin:3px;} QTabBar::tab:selected {background:$surface;color:$accent;} QToolTip {background:$surface;color:$text;border:1px solid $line;padding:8px;}
@@ -27,23 +27,52 @@ QMenuBar,QMenu {background:$surface;color:$text;} QMenu::item:selected {backgrou
     for key,value in t.items():css=css.replace('$'+key,value)
     return css
 
-def icon(name,color='#0065d4'):
-    pix=QPixmap(24,24);pix.fill(Qt.transparent);p=QPainter(pix);p.setRenderHint(QPainter.Antialiasing);p.setPen(QPen(QColor(color),1.7,Qt.SolidLine,Qt.RoundCap,Qt.RoundJoin));p.setBrush(Qt.NoBrush)
-    if name in ['Visão geral','Orçamentos']:
+def icon(name,color=None):
+    color=color or tokens(QApplication.instance().property('dark') is True)['accent'];pix=QPixmap(24,24);pix.fill(Qt.transparent);p=QPainter(pix);p.setRenderHint(QPainter.Antialiasing);p.setPen(QPen(QColor(color),1.7,Qt.SolidLine,Qt.RoundCap,Qt.RoundJoin));p.setBrush(Qt.NoBrush)
+    if name in ['Visão geral','grid']:
         for x,y in [(4,4),(14,4),(4,14),(14,14)]:p.drawRoundedRect(QRectF(x,y,6,6),1.5,1.5)
-    elif name in ['Contas bancárias','Cartões']:
+    elif name=='Contas bancárias':
+        p.drawPolyline([QPointF(3,8),QPointF(12,3),QPointF(21,8)]);p.drawLine(3,9,21,9)
+        for x in [6,12,18]:p.drawLine(x,12,x,18)
+        p.drawLine(3,21,21,21)
+    elif name in ['Cartões','Orçamentos']:
         p.drawRoundedRect(QRectF(3,5,18,14),3,3);p.drawLine(3,10,21,10);p.drawLine(6,15,10,15)
-    elif name in ['Agenda','Dados e backup']:
-        p.drawRoundedRect(QRectF(4,5,16,16),3,3);p.drawLine(4,10,20,10);p.drawLine(8,3,8,7);p.drawLine(16,3,16,7);p.drawLine(8,15,11,18);p.drawLine(11,18,17,12)
-    elif name in ['Investimentos','Relatórios','Análises','Simulações']:
-        p.drawLine(4,20,20,20);p.drawLine(4,20,4,4);p.drawPolyline([QPointF(7,15),QPointF(11,11),QPointF(15,13),QPointF(20,5)])
+        if name=='Orçamentos':p.drawEllipse(QRectF(14,12,4,4))
+    elif name in ['Agenda','calendar']:
+        p.drawRoundedRect(QRectF(4,5,16,16),3,3);p.drawLine(4,10,20,10);p.drawLine(8,3,8,7);p.drawLine(16,3,16,7)
+        for x,y in [(8,14),(13,14),(8,18)]:p.drawPoint(x,y)
+    elif name in ['Investimentos','trend']:
+        p.drawLine(4,20,20,20);p.drawLine(4,20,4,4);p.drawPolyline([QPointF(7,15),QPointF(11,11),QPointF(15,13),QPointF(20,5)]);p.drawPolyline([QPointF(15,5),QPointF(20,5),QPointF(20,10)])
+    elif name in ['Relatórios','document']:
+        p.drawRoundedRect(QRectF(5,3,14,18),2,2);p.drawLine(8,16,8,12);p.drawLine(12,16,12,8);p.drawLine(16,16,16,10)
+    elif name=='Análises':p.drawArc(QRectF(3,3,18,18),0,270*16);p.drawPolyline([QPointF(12,3),QPointF(12,12),QPointF(21,12)])
+    elif name in ['Simulações','sliders']:
+        for x,y in [(6,8),(12,16),(18,10)]:p.drawLine(x,3,x,21);p.drawEllipse(QRectF(x-2,y-2,4,4))
     elif name=='Metas e câmbio':p.drawEllipse(QRectF(3,3,18,18));p.drawEllipse(QRectF(7,7,10,10));p.drawLine(12,12,21,3)
     elif name=='Perfil':p.drawEllipse(QRectF(8,3,8,8));p.drawArc(QRectF(4,13,16,12),0,180*16)
-    elif name=='Categorias':
-        p.drawPolygon([QPointF(3,5),QPointF(14,5),QPointF(22,13),QPointF(13,22),QPointF(3,12)]);p.drawEllipse(QRectF(7,8,2,2))
+    elif name=='Categorias':p.drawPolygon([QPointF(3,5),QPointF(14,5),QPointF(22,13),QPointF(13,22),QPointF(3,12)]);p.drawEllipse(QRectF(7,8,2,2))
+    elif name in ['Dados e backup','shield']:
+        path=QPainterPath();path.moveTo(12,3);path.lineTo(20,6);path.lineTo(19,14);path.quadTo(18,19,12,22);path.quadTo(6,19,5,14);path.lineTo(4,6);path.closeSubpath();p.drawPath(path);p.drawPolyline([QPointF(8,12),QPointF(11,15),QPointF(16,9)])
+    elif name=='search':p.drawEllipse(QRectF(4,3,12,12));p.drawLine(14,14,21,21)
+    elif name=='add':p.drawLine(12,5,12,19);p.drawLine(5,12,19,12)
+    elif name=='pencil':p.drawPolyline([QPointF(5,16),QPointF(16,5),QPointF(20,9),QPointF(9,20),QPointF(4,21),QPointF(5,16)]);p.drawLine(14,7,18,11)
+    elif name=='trash':p.drawRoundedRect(QRectF(6,7,12,14),2,2);p.drawLine(4,6,20,6);p.drawLine(9,3,15,3);p.drawLine(10,10,10,17);p.drawLine(14,10,14,17)
+    elif name=='check':p.drawPolyline([QPointF(5,12),QPointF(10,17),QPointF(20,6)])
+    elif name=='close':p.drawLine(6,6,18,18);p.drawLine(6,18,18,6)
+    elif name in ['download','upload']:
+        p.drawPolyline([QPointF(4,15),QPointF(4,20),QPointF(20,20),QPointF(20,15)]);p.drawLine(12,3,12,15);p.drawPolyline([QPointF(7,10 if name=='download' else 8),QPointF(12,15 if name=='download' else 3),QPointF(17,10 if name=='download' else 8)])
+    elif name=='refresh':p.drawArc(QRectF(4,4,16,16),45*16,285*16);p.drawPolyline([QPointF(17,3),QPointF(21,7),QPointF(15,7)])
     else:
         for y in [6,12,18]:p.drawLine(5,y,20,y);p.drawPoint(2,y)
     p.end();return QIcon(pix)
+
+def action_icon(text,color=None):
+    key=text.casefold();name=None
+    if key.lstrip().startswith('+'):return QIcon()
+    if 'buscar' in key:return icon('search',color)
+    for words,symbol in [(['adicionar','cadastrar','novo','registrar'],'add'),(['editar','ajustar','enquadrar'],'pencil'),(['excluir','remover'],'trash'),(['salvar','confirmar','calcular'],'check'),(['fechar','cancelar'],'close'),(['atualizar','conferir'],'refresh'),(['exportar','salvar arquivo'],'upload'),(['importar','backup'],'download'),(['histórico','agendar'],'calendar'),(['projetar'],'trend'),(['definir'],'sliders'),(['verificar'],'shield'),(['copiar','comprovantes'],'document')]:
+        if any(word in key for word in words):name=symbol;break
+    return icon(name,color) if name else QIcon()
 
 class InteractiveChart(QWidget):
     selected=Signal(str)
@@ -69,7 +98,9 @@ class InteractiveChart(QWidget):
         if hit:self.selected.emit(hit[0])
     def leaveEvent(self,event):QToolTip.hideText()
     def paintEvent(self,event):
+        import core
         t=tokens(QApplication.instance().property('dark') is True);p=QPainter(self);p.setRenderHint(QPainter.Antialiasing);p.setFont(QFont('Segoe UI',9));p.setPen(QColor(t['muted']));self.hits=[];self.slices=[];w,h=self.width(),self.height()
+        if core.PRIVACY_MODE:p.drawText(self.rect(),Qt.AlignCenter,'Valores ocultos');self.hits=[];self.slices=[];return
         if not self.series or not any(any(v!=0 for v in values) for _,values in self.series):p.drawText(self.rect(),Qt.AlignCenter,'Sem valores neste período\nAdicione um lançamento para começar.');return
         if self.mode=='donut':
             vals=[(n,v[0]) for n,v in self.series if v and v[0]>0];total=sum(v for n,v in vals)
@@ -85,7 +116,7 @@ class InteractiveChart(QWidget):
         allv=[v for _,values in self.series for v in values];lo=min(0,min(allv));hi=max(0,max(allv));span=(hi-lo)*1.15 or 1;left=74;right=w-18;top=40;bottom=h-34
         def yy(v):return bottom-(v-lo)/span*(bottom-top)
         for i in range(5):
-            value=lo+span*i/4;y=yy(value);p.setPen(QPen(QColor(t['line']),1));p.drawLine(QPointF(left,y),QPointF(right,y));p.setPen(QColor(t['muted']));p.drawText(QRectF(0,y-9,left-10,20),Qt.AlignRight,f'{value/100:,.0f}'.replace(',','.'))
+            value=lo+span*i/4;y=yy(value);p.setPen(QPen(QColor(t['line']),1));p.drawLine(QPointF(left,y),QPointF(right,y));p.setPen(QColor(t['muted']));p.drawText(QRectF(0,y-9,left-10,20),Qt.AlignRight,((f'{value/100000000:.1f} mi' if abs(value)>=100000000 else f'{value/100000:.1f} mil' if abs(value)>=1000000 else f'{value/100:,.0f}').replace(',','_').replace('.',',').replace('_','.')))
         n=max(len(v) for _,v in self.series)
         for index,(name,values) in enumerate(self.series):
             color=QColor(COLORS[index%len(COLORS)]);p.setPen(QPen(color,2.5));p.setBrush(color);lx=left+index*(right-left)/max(1,len(self.series));p.drawText(int(lx),18,name)
@@ -100,7 +131,10 @@ class InteractiveChart(QWidget):
                     if i:path.lineTo(x,y)
                     else:path.moveTo(x,y)
                     self.hits.append((QRectF(x-7,y-8,14,16),name+' • '+(self.labels[i] if i<len(self.labels) else str(i)),value))
-                p.setBrush(Qt.NoBrush);p.drawPath(path)
+                if len(self.series)==1 and len(values)>1:
+                    area=QPainterPath(path);area.lineTo(right,yy(0));area.lineTo(left,yy(0));area.closeSubpath();gradient=QLinearGradient(0,top,0,bottom);wash=QColor(color);wash.setAlpha(45);gradient.setColorAt(0,wash);wash.setAlpha(0);gradient.setColorAt(1,wash);p.fillPath(area,gradient)
+                p.setBrush(Qt.NoBrush);p.setPen(QPen(color,2.5));p.drawPath(path)
+                if values:p.setBrush(color);p.drawEllipse(QPointF(left+(len(values)-1)*(right-left)/max(1,n-1),yy(values[-1])),3.5,3.5)
                 if len(values)==1:p.setBrush(color);p.drawEllipse(QPointF(left,yy(values[0])),4,4)
         p.setPen(QColor(t['muted']))
         for i,text in enumerate(self.labels):
