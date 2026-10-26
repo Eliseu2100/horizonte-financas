@@ -14,10 +14,11 @@ Controle mensal, categorias, recorrências, orçamento, carteira por posições,
 ## Depois da validação
 
 - Conciliação automática de contas e histórico de taxas de câmbio por transação.
-- Cartões, fechamento/vencimento e parcelamentos com fatura própria.
+- Cartões e faturas com integração bancária, estornos e refinanciamentos; o controle manual básico já foi entregue na 0.2.
 - Histórico de preços, quantidades e eventos por ativo.
 - Convenções financeiras por contrato, feriados brasileiros e regras tributárias atualizadas com fontes oficiais.
-- Importação CSV/OFX com prévia e mapeamento de colunas.
+- Mapeamento livre de colunas e extratos de cartões; CSV/OFX de contas em reais com prévia já foi entregue.
 - Criptografia, instalador assinado e atualização com rollback.
 
 Open Finance, múltiplos usuários, sincronização e integrações por API só devem entrar após definição de custo, consentimento e necessidade. O planejamento não representa funcionalidades já disponíveis.
+  
