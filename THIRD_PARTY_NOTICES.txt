@@ -1,0 +1,15 @@
+Horizonte utiliza Python (PSF), PySide6/Qt (LGPLv3), openpyxl (MIT) e empacotamento com PyInstaller (GPL com exceção de distribuição). O instalador utiliza Inno Setup.
+As bibliotecas Qt são distribuídas dinamicamente. É permitida sua substituição por versões compatíveis, assim como engenharia reversa para depuração de modificações a essas bibliotecas, nos termos da LGPL.
+
+Licenças e fontes oficiais:
+Python: https://docs.python.org/3/license.html
+PySide6/Qt: https://doc.qt.io/qtforpython-6/licenses.html
+Código-fonte PySide6: https://code.qt.io/pyside/pyside-setup.git
+Código-fonte Qt: https://code.qt.io/cgit/qt/
+LGPLv3: https://www.gnu.org/licenses/lgpl-3.0.txt
+openpyxl: https://foss.heptapod.net/openpyxl/openpyxl
+PyInstaller: https://pyinstaller.org/en/stable/license.html
+Inno Setup: https://jrsoftware.org/files/is/license.txt
+
+Versões usadas: Python 3.14.7; PySide6 6.12.0; openpyxl 3.1.5; PyInstaller 6.22.3; Inno Setup 6.7.3.
+O código do aplicativo é entregue na pasta src para uso e alteração por Eliseu Souza dos Santos. Os componentes de terceiros mantêm suas respectivas licenças.
