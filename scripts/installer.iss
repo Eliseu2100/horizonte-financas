@@ -1,7 +1,7 @@
 [Setup]
 AppId={{2C46E8B2-97AB-48E1-B5A4-9A76D32B3B05}
 AppName=Horizonte
-AppVersion=0.2.0
+AppVersion=0.2.1
 DefaultDirName={localappdata}\Programs\Horizonte
 DefaultGroupName=Horizonte
 PrivilegesRequired=lowest
@@ -9,7 +9,7 @@ ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 MinVersion=10.0.18362
 OutputDir=..\release
-OutputBaseFilename=Horizonte-Instalar-0.2.0-Windows-x64
+OutputBaseFilename=Horizonte-Instalar-0.2.1-Windows-x64
 SetupIconFile=..\src\horizonte.ico
 UninstallDisplayIcon={app}\Horizonte.exe
 Compression=lzma2
