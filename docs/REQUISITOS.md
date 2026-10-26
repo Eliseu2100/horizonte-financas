@@ -31,9 +31,15 @@ Pessoas que desejam registrar gastos e planejar objetivos com clareza sobre apor
 
 ## Limites desta versão
 
-Gerenciamento detalhado de cartões/faturas não está implementado. As contas têm saldo conferido e incorporam novos movimentos confirmados posteriores ao ponto de conferência. Dados importados a revisar não alteram automaticamente os saldos dessas contas. Faturas agregadas devem ser revistas antes de registrar compras contidas nelas. O importador é específico para um layout mensal e não é um importador universal de Excel.
+Cartões/faturas e parcelas manuais estão implementados na versão 0.2. O cadastro usa valores em reais e não envia pagamentos ao banco. As contas têm saldo conferido e incorporam novos movimentos confirmados posteriores ao ponto de conferência. Dados importados a revisar não alteram automaticamente os saldos dessas contas. Faturas agregadas devem ser revistas antes de registrar compras contidas nelas. O importador é específico para um layout mensal e não é um importador universal de Excel.
 
 
 ## Perfil, moedas e backup
 
 Perfil opcional com foto PNG redimensionada no próprio banco. Contas e posições aceitam BRL, USD, EUR e JPY. Taxa de conversão em reais por unidade, informada manualmente; câmbio futuro não previsto. Backup completo diário na pasta escolhida, atualizado a cada 30 minutos de uso e ao fechar. Sem execução em segundo plano quando o app está fechado. Para trocar de computador, instalar e restaurar o arquivo SQLite.
+
+
+## Versão 0.2
+
+Agenda, categorias/subcategorias, comprovantes no banco, conciliação CSV/OFX com prévia e controle de duplicação, cartões e faturas manuais. Regras de ciclo e tributação automática do banco não são inferidas. Ver docs/ATUALIZACAO-0.2.md.
+  
