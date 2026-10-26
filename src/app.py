@@ -1,12 +1,12 @@
 import os, sys, json, csv, shutil, math, traceback
 from pathlib import Path
 from datetime import date, datetime
-from PySide6.QtCore import Qt, QDate, QThread, Signal, QTimer, QRectF, QPointF
+from PySide6.QtCore import Qt, QDate, QThread, Signal, QTimer, QRectF, QPointF, QLockFile
 from PySide6.QtGui import QColor, QPainter, QPen, QFont, QPainterPath, QIcon, QFontDatabase, QPixmap, QImage, QTextDocument
 from PySide6.QtWidgets import (QApplication,QMainWindow,QWidget,QVBoxLayout,QHBoxLayout,QGridLayout,QLabel,QPushButton,QComboBox,QLineEdit,QTableWidget,QTableWidgetItem,QHeaderView,QAbstractItemView,QScrollArea,QFrame,QDialog,QFormLayout,QDialogButtonBox,QDateEdit,QDoubleSpinBox,QSpinBox,QMessageBox,QFileDialog,QProgressBar,QTextEdit,QCheckBox)
 from core import *
 from finance import position_projection, goal_assessment, recent_capacity, insights, allocation, asset_group
-VERSION='0.1.0'
+VERSION='0.2.0'
 ROOT=Path(getattr(sys,'_MEIPASS',Path(__file__).parent))
 PALETTE=['#14816e','#527bdd','#e5a64e','#9c77cf','#dd7787','#62a6b1','#829468','#aa8868']
 STYLE='''
@@ -192,7 +192,7 @@ class Window(QMainWindow):
             self.s.db.execute('DELETE FROM tx WHERE id=?',(self.tx_rows[i]['id'],));self.s.db.commit();self.render()
     def edit_tx(self,data=None):
         if not isinstance(data,dict):data={}
-        fields=[('description','Descrição',data.get('description',''),None),('amount','Valor em R$ (vazio = ausente)',str(data['amount']/100).replace('.',',') if data.get('amount') is not None else '',None),('kind','Tipo',data.get('kind','Despesa'),KINDS),('category','Categoria',data.get('category','Outros'),CATEGORIES),('day','Data AAAA-MM-DD (opcional)',data.get('day',date.today().isoformat()),None),('period','Competência AAAA-MM',data.get('period',self.p),None),('account','Conta de origem',data.get('account',''),['']+sorted(set([a['name'] for a in self.s.rows('SELECT name FROM accounts')]+([data['account']] if data.get('account') else [])))),('target_account','Destino (transferência)',data.get('target_account',''),['']+sorted(set([a['name'] for a in self.s.rows('SELECT name FROM accounts')]+([data['target_account']] if data.get('target_account') else [])))),('status','Situação',data.get('status','Confirmado'),['Confirmado','A revisar','Previsto']),('note','Observações',data.get('note',''),None)]
+        fields=[('description','Descrição',data.get('description',''),None),('amount','Valor em R$ (vazio = ausente)',str(data['amount']/100).replace('.',',') if data.get('amount') is not None else '',None),('kind','Tipo',data.get('kind','Despesa'),KINDS),('category','Categoria',data.get('category','Outros'),self.s.category_names()),('day','Data AAAA-MM-DD (opcional)',data.get('day',date.today().isoformat()),None),('period','Competência AAAA-MM',data.get('period',self.p),None),('account','Conta de origem',data.get('account',''),['']+sorted(set([a['name'] for a in self.s.rows('SELECT name FROM accounts')]+([data['account']] if data.get('account') else [])))),('target_account','Destino (transferência)',data.get('target_account',''),['']+sorted(set([a['name'] for a in self.s.rows('SELECT name FROM accounts')]+([data['target_account']] if data.get('target_account') else [])))),('status','Situação',data.get('status','Confirmado'),['Confirmado','A revisar','Previsto']),('note','Observações',data.get('note',''),None)]
         if not data:fields.append(('repeat','Repetir por meses (1 a 60)',1,None))
         f=Form('Editar lançamento' if data else 'Novo lançamento',fields,self)
         while f.exec():
@@ -218,7 +218,7 @@ class Window(QMainWindow):
             rows.append([cat,money(used),money(limit) if limit is not None else 'Não definido',money(limit-used) if limit is not None else '—',f'{used/limit:.0%}' if limit else '—','Acima do limite' if limit is not None and used>limit else 'Dentro do limite' if limit is not None else 'Definir orçamento'])
         self.budget_table=table(['Categoria','Gasto','Limite','Restante','Utilização','Leitura'],rows);self.budget_table.setMinimumHeight(430);self.body.addWidget(self.budget_table)
     def edit_budget(self):
-        f=Form('Orçamento de '+month_label(self.p),[('category','Categoria','Alimentação',CATEGORIES),('amount','Limite em R$','500,00',None)],self)
+        f=Form('Orçamento de '+month_label(self.p),[('category','Categoria','Alimentação',self.s.category_names()),('amount','Limite em R$','500,00',None)],self)
         while f.exec():
             try:
                 v=f.values();amount=cents(v['amount'])
@@ -597,12 +597,16 @@ def main():
         QFontDatabase.addApplicationFont(str(Path(os.environ.get('WINDIR','C:/Windows'))/'Fonts'/fontfile))
     app.setFont(QFont('Segoe UI',10));app.setStyle('Fusion');app.setStyleSheet(STYLE)
     folder=Path(os.environ.get('HORIZONTE_DATA_DIR',str(Path(os.environ.get('LOCALAPPDATA',str(Path.home()))) / ('HorizonteDemo' if '--demo' in sys.argv else 'Horizonte'))));folder.mkdir(parents=True,exist_ok=True);database=folder/'financas.sqlite'
+    lock=QLockFile(str(folder/'session.lock'));lock.setStaleLockTime(0)
+    if not lock.tryLock(0):
+        QMessageBox.information(None,'Horizonte já está aberto','Feche a outra janela do Horizonte antes de abrir este banco novamente.');return
     if '--demo' not in sys.argv and not database.exists() and (ROOT/'seed.sqlite').exists():shutil.copy2(ROOT/'seed.sqlite',database)
     store=Store(database)
     if '--demo' in sys.argv:
         from demo import seed_demo
         seed_demo(store)
-    win=Window(store);win.show()
+    from workspace import ModernWindow
+    win=ModernWindow(store);win.show()
     if '--smoke-test' in sys.argv:
         def smoke():
             try:
@@ -611,5 +615,8 @@ def main():
             except Exception:(folder/'smoke-error.txt').write_text(traceback.format_exc(),encoding='utf-8');app.exit(1)
         QTimer.singleShot(600,smoke)
     sys.exit(app.exec())
-if __name__=='__main__':main()
+if __name__=='__main__':
+    sys.modules.setdefault('app',sys.modules[__name__])
+    main()
 
+    
