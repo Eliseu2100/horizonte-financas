@@ -4,7 +4,7 @@ from PySide6.QtGui import QImage,QPixmap,QPainter,QPainterPath,QColor,QPen
 from PySide6.QtWidgets import QWidget,QDialog,QVBoxLayout,QFormLayout,QSlider,QDialogButtonBox,QLabel
 
 def circle_pixmap(image,size):
-    pix=QPixmap(size,size);pix.fill(Qt.transparent);p=QPainter(pix);p.setRenderHint(QPainter.Antialiasing);path=QPainterPath();path.addEllipse(QRectF(1,1,size-2,size-2));p.setClipPath(path);p.drawImage(QRectF(0,0,size,size),image);p.setClipping(False);p.setPen(QPen(QColor('#0065d4'),2));p.setBrush(Qt.NoBrush);p.drawEllipse(QRectF(1,1,size-2,size-2));p.end();return pix
+    pix=QPixmap(size,size);pix.fill(Qt.transparent);p=QPainter(pix);p.setRenderHint(QPainter.Antialiasing);path=QPainterPath();path.addEllipse(QRectF(1,1,size-2,size-2));p.setClipPath(path);side=min(image.width(),image.height());source=QRectF((image.width()-side)/2,(image.height()-side)/2,side,side);p.drawImage(QRectF(0,0,size,size),image,source);p.setClipping(False);p.setPen(QPen(QColor('#0065d4'),2));p.setBrush(Qt.NoBrush);p.drawEllipse(QRectF(1,1,size-2,size-2));p.end();return pix
 
 class CropPreview(QWidget):
     moved=Signal(float,float)
@@ -33,4 +33,4 @@ class PhotoCropDialog(QDialog):
         self.preview.zoom=self.sliders['zoom'].value()/100;self.preview.x=self.sliders['x'].value()/100;self.preview.y=self.sliders['y'].value()/100;self.preview.update()
     def update_sliders(self,x,y):
         for key,value in [('x',x),('y',y)]:self.sliders[key].blockSignals(True);self.sliders[key].setValue(round(value*100));self.sliders[key].blockSignals(False)
-  
+    
