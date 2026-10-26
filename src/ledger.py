@@ -33,7 +33,8 @@ def migrate(store):
         for n in CATEGORIES:db.execute('INSERT OR IGNORE INTO categories(name) VALUES (?)',(n,))
     for row in db.execute('SELECT DISTINCT category FROM tx UNION SELECT DISTINCT category FROM budgets'):
         if row[0]:db.execute('INSERT OR IGNORE INTO categories(name) VALUES (?)',(row[0],))
-    db.execute("INSERT OR REPLACE INTO settings VALUES ('schema-version','2')");db.commit()
+    from investments import migrate as migrate_investments
+    migrate_investments(store)
 
 class Ledger:
     def __init__(self,store):self.s=store
@@ -201,7 +202,7 @@ class Ledger:
             required={'tx','settings','goals','positions','budgets','snapshots','imports','accounts'};found={r[0] for r in source.execute("SELECT name FROM sqlite_master WHERE type='table'")}
             if not required<=found or not source.execute('SELECT 1 FROM goals').fetchone():raise ValueError('Este arquivo não é um backup compatível do Horizonte.')
             version=source.execute("SELECT value FROM settings WHERE key='schema-version'").fetchone()
-            if version and int(version[0])>2:raise ValueError('Backup de uma versão mais nova. Atualize o aplicativo primeiro.')
+            if version and int(version[0])>3:raise ValueError('Backup de uma versão mais nova. Atualize o aplicativo primeiro.')
             tmp=sqlite3.connect(candidate)
             try:source.backup(tmp)
             finally:tmp.close()
