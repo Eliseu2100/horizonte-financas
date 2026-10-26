@@ -45,7 +45,9 @@ class MonthField(DateField):
 class ResponsiveCards(QWidget):
     def __init__(self,cards):
         from PySide6.QtWidgets import QGridLayout,QSizePolicy
-        super().__init__();self.cards=cards;self.columns=0;self.grid=QGridLayout(self);self.grid.setContentsMargins(0,0,0,0);self.grid.setSpacing(14);self.setSizePolicy(QSizePolicy.Expanding,QSizePolicy.Minimum);self.reflow()
+        super().__init__();self.cards=cards;self.columns=0;self.grid=QGridLayout(self);self.grid.setSizeConstraint(__import__('PySide6.QtWidgets',fromlist=['QLayout']).QLayout.SetNoConstraint);self.grid.setContentsMargins(0,0,0,0);self.grid.setSpacing(14);self.setSizePolicy(QSizePolicy.Expanding,QSizePolicy.Minimum);self.reflow()
+    def minimumSizeHint(self):return __import__('PySide6.QtCore',fromlist=['QSize']).QSize(max((w.minimumSizeHint().width() for w in self.cards),default=0),self.grid.minimumSize().height())
+    def sizeHint(self):return __import__('PySide6.QtCore',fromlist=['QSize']).QSize(800,self.grid.sizeHint().height())
     def reflow(self):
         columns=min(len(self.cards),2 if self.width()<900 else 4)
         if columns==self.columns:return
@@ -90,4 +92,17 @@ class FlowLayout(QLayout):
 class ChoiceBox(QComboBox):
     def paintEvent(self,event):
         super().paintEvent(event);p=QPainter(self);p.setRenderHint(QPainter.Antialiasing);p.setPen(Qt.NoPen);p.setBrush(self.palette().color(self.foregroundRole()));x=self.width()-15;y=self.height()/2;p.drawPolygon(QPolygonF([QPointF(x-4,y-2),QPointF(x+4,y-2),QPointF(x,y+3)]));p.end()
+
+from PySide6.QtWidgets import QLabel,QSizePolicy
+from PySide6.QtGui import QFont,QFontMetrics
+class MetricLabel(QLabel):
+    def __init__(self,text):
+        super().__init__(text);self.setWordWrap(False);self.setSizePolicy(QSizePolicy.Ignored,QSizePolicy.Preferred);self.setMinimumHeight(38);self._pixels=0
+    def resizeEvent(self,event):
+        super().resizeEvent(event);font=QFont(self.font());pixels=28
+        while pixels>17:
+            font.setPixelSize(pixels)
+            if QFontMetrics(font).horizontalAdvance(self.text())<=self.contentsRect().width():break
+            pixels-=1
+        if pixels!=self._pixels:self._pixels=pixels;self.setStyleSheet('font-size:'+str(pixels)+'px;')
     
