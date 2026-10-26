@@ -1,0 +1,26 @@
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.sqlite
+*.sqlite-*
+*.db
+*.xlsx
+*.xls
+*.csv
+*.avif
+*.exe
+*.dll
+*.zip
+*.spec
+build/
+dist/
+release/
+.env
+.env.*
+private/
+work/
+
+# Arquivos visuais reconstituíveis ou publicados na apresentação
+src/horizonte.ico
+docs/dashboard.png
