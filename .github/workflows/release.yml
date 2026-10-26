@@ -1,0 +1,53 @@
+name: Windows installer
+on:
+  workflow_dispatch:
+  release:
+    types: [published]
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    env:
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        shell: pwsh
+        run: |
+          python -m venv .venv
+          .venv/Scripts/python.exe -m pip install -r requirements-dev.txt
+      - name: Tests
+        shell: pwsh
+        run: .venv/Scripts/python.exe -m unittest discover -s tests -v
+      - name: Build executable
+        shell: pwsh
+        run: ./scripts/build.ps1
+      - name: Test executable
+        shell: pwsh
+        run: |
+          $env:HORIZONTE_DATA_DIR = Join-Path $env:RUNNER_TEMP 'horizonte-smoke'
+          $process = Start-Process './dist/Horizonte/Horizonte.exe' -ArgumentList '--demo','--smoke-test' -Wait -PassThru -WindowStyle Hidden
+          if ($process.ExitCode -ne 0) { throw 'Executable smoke test failed.' }
+          if (-not (Test-Path (Join-Path $env:HORIZONTE_DATA_DIR 'smoke-ok.txt'))) { throw 'Missing smoke marker.' }
+      - name: Package installer
+        shell: pwsh
+        run: ./scripts/package.ps1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Horizonte-Windows-x64
+          path: release/*
+      - name: Publish release files
+        if: github.event_name == 'release'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          $assets = Get-ChildItem release -File | ForEach-Object FullName
+          gh release upload $env:RELEASE_TAG @assets --clobber
+  
