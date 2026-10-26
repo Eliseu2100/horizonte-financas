@@ -4,7 +4,7 @@ os.environ.setdefault('QT_QPA_PLATFORM','offscreen')
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'src'))
 from PySide6.QtWidgets import QApplication,QMessageBox
 from PySide6.QtGui import QFontDatabase
-from PySide6.QtCore import QTimer,QPointF,Qt
+from PySide6.QtCore import QTimer,QPointF,Qt,QEvent
 from PySide6.QtTest import QTest
 from core import Store
 from demo import seed_demo
@@ -16,7 +16,8 @@ class UITests(unittest.TestCase):
         for font in ['segoeui.ttf','segoeuib.ttf']:QFontDatabase.addApplicationFont('C:/Windows/Fonts/'+font)
     def setUp(self):
         self.temp=tempfile.TemporaryDirectory();self.store=Store(Path(self.temp.name)/'db.sqlite');seed_demo(self.store);self.win=ModernWindow(self.store);self.win.show();self.app.processEvents()
-    def tearDown(self):self.win.close();self.app.processEvents();self.temp.cleanup()
+    def tearDown(self):
+        self.win.close();self.win.deleteLater();self.app.sendPostedEvents(None,QEvent.DeferredDelete);self.app.processEvents();self.temp.cleanup()
     def test_entry_inline_validation_and_recurrence(self):
         def complete():
             dialog=self.app.activeModalWidget();self.assertIsInstance(dialog,EntryDialog);dialog.description.setText('Conta recorrente de teste');dialog.amount.setText('125,50');dialog.repeat.setValue(3);dialog.status.setCurrentText('Previsto');dialog.validate()
