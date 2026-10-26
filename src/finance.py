@@ -54,10 +54,12 @@ def insights(store,period):
         if cap['capacity']<0:out.append(('Déficit recorrente',f'Nos últimos {len(cap["periods"])} meses com dados, as despesas superam receitas em média por {money(-cap["capacity"])}. Reduzir gastos ou ampliar receita vem antes de aumentar aportes.'))
         else:out.append(('Capacidade de aporte',f'Sobra média antes de aportes: {money(cap["capacity"])} por mês, com base em {len(cap["periods"])} meses cadastrados. Essa média não garante renda futura.'))
     if summary['Aporte']>max(0,summary['Receita']-summary['Despesa']):out.append(('Aporte acima da sobra',f'O aporte deste mês excede a diferença entre receitas e despesas. Confirme se utilizou saldo anterior ou precisa ajustar o orçamento.'))
+    from ledger import Ledger
+    spent_categories=Ledger(store).category_spend(period)
     for b in store.rows('SELECT * FROM budgets WHERE period=?',(period,)):
-        spent=store.rows("SELECT COALESCE(SUM(amount),0) n FROM tx WHERE period=? AND category=? AND kind='Despesa' AND status!='Previsto'",(period,b['category']))[0]['n']
+        spent=spent_categories.get(b['category'],0)
         if spent>b['amount']:out.append(('Limite ultrapassado',b['category']+': '+money(spent-b['amount'])+' acima do limite. Revise as próximas compras dessa categoria.'))
-    cats=store.rows("SELECT category,SUM(amount) n FROM tx WHERE period=? AND kind='Despesa' AND status!='Previsto' GROUP BY category ORDER BY n DESC",(period,))
+    cats=sorted([dict(category=k,n=v) for k,v in spent_categories.items()],key=lambda r:r['n'],reverse=True)
     if cats and cats[0]['n']:
         cat=cats[0];out.append(('Onde revisar primeiro',f'{cat["category"]} concentra {money(cat["n"])}. Uma redução hipotética de 10% liberaria {money(round(cat["n"]*.1))} por mês; confira o detalhamento antes de cortar.'))
     emergency=sum(p['value'] for p in store.rows('SELECT * FROM positions') if p['asset_type']=='Reserva de emergência' or 'Reserva de emergência' in p['note'])
@@ -86,3 +88,4 @@ def allocation(store):
     for a in store.rows('SELECT * FROM accounts'):
         group='Saldo em conta' if a['currency']=='BRL' else 'Moedas estrangeiras';result[group]=result.get(group,0)+store.account_balance(a)
     return result
+    
