@@ -1,6 +1,11 @@
 name: Windows installer
 on:
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing release to receive installer (optional)
+        required: false
+        type: string
   release:
     types: [published]
 permissions:
@@ -42,11 +47,11 @@ jobs:
           name: Horizonte-Windows-x64
           path: release/*
       - name: Publish release files
-        if: github.event_name == 'release'
+        if: github.event_name == 'release' || inputs.release_tag != ''
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          RELEASE_TAG: ${{ github.event.release.tag_name || inputs.release_tag }}
         run: |
           $assets = Get-ChildItem release -File | ForEach-Object FullName
           gh release upload $env:RELEASE_TAG @assets --clobber
