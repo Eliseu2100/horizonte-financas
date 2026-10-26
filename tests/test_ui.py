@@ -35,7 +35,8 @@ class UITests(unittest.TestCase):
         self.win.toggle_sidebar();self.assertFalse(self.win.sidebar.isVisible());self.win.toggle_sidebar();self.assertTrue(self.win.sidebar.isVisible())
         def select():
             dialog=self.app.activeModalWidget();from PySide6.QtWidgets import QLineEdit,QListWidget
-            search=dialog.findChild(QLineEdit);search.setText('Agenda');items=dialog.findChild(QListWidget);self.assertEqual(items.count(),1);items.setFocus();QTest.keyClick(items,Qt.Key_Return)
-        QTimer.singleShot(50,select);self.win.command_palette();self.assertEqual(self.win.page,'Agenda')
+            search=dialog.findChild(QLineEdit);search.setText('Agenda');items=dialog.findChild(QListWidget);self.assertEqual(items.count(),1);search.setFocus();QTest.keyClick(search,Qt.Key_Return)
+        QTimer.singleShot(50,select);QTimer.singleShot(5000,lambda: self.app.activeModalWidget().reject() if self.app.activeModalWidget() else None);self.win.command_palette();self.assertEqual(self.win.page,'Agenda')
 if __name__=='__main__':unittest.main()
 
+    
