@@ -50,4 +50,9 @@ Na abertura, a cada 30 minutos e no encerramento normal, grava uma cópia comple
 Parcelas são divididas em centavos com distribuição exata do resto. A competência da primeira fatura pode ser ajustada. Dívida de cartão é descontada do patrimônio consolidado. Extratos usam chave estável por conta e identificador da origem; correspondências com lançamentos manuais exigem conciliação explícita.
 
 A versão do esquema é 2. Antes da primeira migração de banco 0.1, uma cópia é criada em backups. A restauração migra uma cópia candidata antes de substituir o banco em uso. O mesmo AppId do instalador permite atualizar sobre a 0.1. Dados ficam fora da pasta do programa. Um lock por banco impede duas instâncias simultâneas.
+
+
+## Elisei 0.3
+
+`investments.py` adiciona investment_events e investment_values no esquema 3. A posição mantém o último estado conhecido para compatibilidade com metas e relatórios atuais; a tela da carteira usa saldos até o mês escolhido. `diagnostics.py` verifica coerência sem exportar dados financeiros. `widgets.py` reúne calendário, seletor de mês, quebra de ações e grade adaptável. `photos.py` faz recorte e prévia circular. O documento ELISEI-0.3.md especifica regras e limites.
   
