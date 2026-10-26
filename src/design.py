@@ -21,6 +21,7 @@ QFrame#card {background:$surface;border:1px solid $line;border-radius:16px;} QFr
 QLineEdit,QComboBox,QDateEdit,QSpinBox,QDoubleSpinBox,QTextEdit,QListWidget {background:$input;border:1px solid $line;border-radius:8px;padding:8px;selection-background-color:$primary;selection-color:white;} QLineEdit:focus,QComboBox:focus,QDateEdit:focus,QSpinBox:focus {border:2px solid $accent;} QComboBox::drop-down {width:24px;border:0;} QComboBox QAbstractItemView {background:$surface;color:$text;selection-background-color:$selection;selection-color:$text;}
 QTableWidget {background:$surface;border:0;gridline-color:$line;selection-background-color:$selection;selection-color:$text;alternate-background-color:$bg;} QTableWidget::item {padding:8px;} QHeaderView::section {background:$surface;color:$muted;padding:11px;border:0;border-bottom:1px solid $line;font-weight:600;} QProgressBar {background:$sidebar;border:0;border-radius:4px;max-height:8px;} QProgressBar::chunk {background:$primary;border-radius:4px;}
 QScrollBar:vertical {width:9px;background:transparent;} QScrollBar::handle:vertical {background:$line;border-radius:4px;min-height:32px;} QScrollBar::add-line:vertical,QScrollBar::sub-line:vertical {height:0;} QCheckBox {spacing:8px;} QCheckBox::indicator {width:17px;height:17px;} QTabWidget::pane {border:0;} QTabBar::tab {background:$sidebar;padding:9px 18px;border-radius:6px;margin:3px;} QTabBar::tab:selected {background:$surface;color:$accent;} QToolTip {background:$surface;color:$text;border:1px solid $line;padding:8px;}
+QCalendarWidget {background:$surface;} QCalendarWidget QToolButton {color:$text;background:$surface;padding:6px;min-width:28px;} QCalendarWidget QAbstractItemView {background:$surface;color:$text;selection-background-color:$primary;selection-color:white;}
 QMenuBar,QMenu {background:$surface;color:$text;} QMenu::item:selected {background:$selection;} QStatusBar {background:$bg;color:$muted;border-top:1px solid $line;}
 '''
     for key,value in t.items():css=css.replace('$'+key,value)
@@ -47,27 +48,38 @@ def icon(name,color='#0065d4'):
 class InteractiveChart(QWidget):
     selected=Signal(str)
     def __init__(self,mode,series,labels=None,height=240,center='Total'):
-        super().__init__();self.mode=mode;self.series=series;self.labels=labels or [];self.center=center;self.hits=[];self.setMouseTracking(True);self.setMinimumHeight(height);self.setMinimumWidth(230);self.setAccessibleName('Gráfico '+mode);self.setAccessibleDescription('\n'.join(n+': '+', '.join(money(round(v)) for v in values) for n,values in series))
+        super().__init__();self.mode=mode;self.series=series;self.labels=labels or [];self.center=center;self.hits=[];self.slices=[];self.setMouseTracking(True);self.setMinimumHeight(height);self.setMinimumWidth(230);self.setAccessibleName('Gráfico '+mode);self.setAccessibleDescription('\n'.join(n+': '+', '.join(money(round(v)) for v in values) for n,values in series))
+    def hit_at(self,point):
+        for rect,title,value in self.hits:
+            if rect.contains(point):return title,value
+        if self.mode=='donut' and self.slices:
+            center,radius=self.donut_geometry;dx=point.x()-center.x();dy=point.y()-center.y();distance=math.hypot(dx,dy)
+            if radius*.56<=distance<=radius:
+                angle=math.degrees(math.atan2(dx,-dy))%360
+                for start,end,title,value in self.slices:
+                    if start<=angle<end:return title,value
+        return None
     def mouseMoveEvent(self,event):
-        for rect,title,value in self.hits:
-            if rect.contains(event.position()):QToolTip.showText(event.globalPosition().toPoint(),title+'\n'+money(round(value)),self);return
-        QToolTip.hideText()
+        hit=self.hit_at(event.position())
+        if hit:QToolTip.showText(event.globalPosition().toPoint(),hit[0]+'\n'+money(round(hit[1])),self)
+        else:QToolTip.hideText()
     def mousePressEvent(self,event):
-        for rect,title,value in self.hits:
-            if rect.contains(event.position()):self.selected.emit(title.split(' • ')[0]);return
+        if event.button()!=Qt.LeftButton:return
+        hit=self.hit_at(event.position())
+        if hit:self.selected.emit(hit[0])
     def leaveEvent(self,event):QToolTip.hideText()
     def paintEvent(self,event):
-        t=tokens(QApplication.instance().property('dark') is True);p=QPainter(self);p.setRenderHint(QPainter.Antialiasing);p.setFont(QFont('Segoe UI',9));p.setPen(QColor(t['muted']));self.hits=[];w,h=self.width(),self.height()
+        t=tokens(QApplication.instance().property('dark') is True);p=QPainter(self);p.setRenderHint(QPainter.Antialiasing);p.setFont(QFont('Segoe UI',9));p.setPen(QColor(t['muted']));self.hits=[];self.slices=[];w,h=self.width(),self.height()
         if not self.series or not any(any(v!=0 for v in values) for _,values in self.series):p.drawText(self.rect(),Qt.AlignCenter,'Sem valores neste período\nAdicione um lançamento para começar.');return
         if self.mode=='donut':
             vals=[(n,v[0]) for n,v in self.series if v and v[0]>0];total=sum(v for n,v in vals)
             if not total:return
-            size=min(210,h-30,w*.45);rect=QRectF(6,10,size,size);start=90*16
+            size=min(210,h-30,w*.45);rect=QRectF(6,10,size,size);start=90*16;angle=0;self.donut_geometry=(rect.center(),size/2)
             for i,(name,value) in enumerate(vals):
-                span=-round(value/total*360*16);p.setPen(QPen(QColor(t['surface']),3));p.setBrush(QColor(COLORS[i%len(COLORS)]));p.drawPie(rect,start,span);start+=span
+                span=-round(value/total*360*16);p.setPen(QPen(QColor(t['surface']),3));p.setBrush(QColor(COLORS[i%len(COLORS)]));p.drawPie(rect,start,span);start+=span;self.slices.append((angle,angle+value/total*360,name,value));angle+=value/total*360
             p.setPen(Qt.NoPen);p.setBrush(QColor(t['surface']));p.drawEllipse(rect.adjusted(size*.22,size*.22,-size*.22,-size*.22));p.setPen(QColor(t['text']));p.drawText(rect,Qt.AlignCenter,self.center+'\n'+money(round(total)))
             for i,(name,value) in enumerate(vals[:8]):
-                x=size+26;y=24+i*25;p.fillRect(int(x),y-9,8,8,QColor(COLORS[i%len(COLORS)]));p.setPen(QColor(t['text']));available=w-x-20;text=p.fontMetrics().elidedText(f'{name}  {value/total:.0%}',Qt.ElideRight,int(available));p.drawText(int(x+16),y,text);self.hits.append((QRectF(x,y-16,w-x,24),name,value))
+                x=size+26;y=24+i*25;p.fillRect(int(x),y-9,8,8,QColor(COLORS[i%len(COLORS)]));p.setPen(QColor(t['text']));available=max(0,w-x-36);text=p.fontMetrics().elidedText(f'{name}  {value/total:.0%}',Qt.ElideRight,int(available));p.drawText(int(x+16),y,text);self.hits.append((QRectF(x,y-16,w-x,24),name,value))
             if len(vals)>8:p.setPen(QColor(t['muted']));p.drawText(int(size+42),24+8*25,f'+{len(vals)-8} categorias no relatório')
             return
         allv=[v for _,values in self.series for v in values];lo=min(0,min(allv));hi=max(0,max(allv));span=(hi-lo)*1.15 or 1;left=74;right=w-18;top=40;bottom=h-34
@@ -89,7 +101,9 @@ class InteractiveChart(QWidget):
                     else:path.moveTo(x,y)
                     self.hits.append((QRectF(x-7,y-8,14,16),name+' • '+(self.labels[i] if i<len(self.labels) else str(i)),value))
                 p.setBrush(Qt.NoBrush);p.drawPath(path)
+                if len(values)==1:p.setBrush(color);p.drawEllipse(QPointF(left,yy(values[0])),4,4)
         p.setPen(QColor(t['muted']))
         for i,text in enumerate(self.labels):
             if n>10 and i not in [0,n//4,n//2,3*n//4,n-1]:continue
             x=left+(i+.5)*(right-left)/max(1,n) if self.mode=='bar' else left+i*(right-left)/max(1,n-1);p.drawText(QRectF(x-32,bottom+10,64,20),Qt.AlignCenter,text)
+    
