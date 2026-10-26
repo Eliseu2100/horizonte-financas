@@ -59,6 +59,9 @@ class Ledger:
         for row in self.s.rows("SELECT category,SUM(amount) n FROM tx WHERE period=? AND kind='Despesa' AND status!='Previsto' GROUP BY category",(period,))+self.s.rows('SELECT category,SUM(amount) n FROM card_items WHERE period=? GROUP BY category',(period,)):
             result[row['category']]=result.get(row['category'],0)+(row['n'] or 0)
         return result
+    def budget_spend(self,period,category):
+        names=[category]+[r['name'] for r in self.s.rows('SELECT name FROM categories WHERE parent=?',(category,))]
+        spent=self.category_spend(period);return sum(spent.get(name,0) for name in names)
     def save_card(self,data,ident=None):
         data=dict(data);data['name']=data['name'].strip()
         if not data['name']:raise ValueError('Informe o nome do cartão.')
@@ -108,7 +111,7 @@ class Ledger:
         with self.s.db:self.s.db.execute('DELETE FROM card_items WHERE batch_key=?',(batch,))
     def due(self,today=None):
         today=today or date.today();items=[]
-        for row in self.s.rows("SELECT * FROM tx WHERE status='Previsto' AND kind!='Transferência' AND amount IS NOT NULL ORDER BY COALESCE(due_day,day,period)"):
+        for row in self.s.rows("SELECT * FROM tx WHERE status='Previsto' AND kind!='Transferência' ORDER BY COALESCE(due_day,day,period)"):
             deadline=row['due_day'] or row['day'] or row['period']+'-01';items.append(dict(type='tx',id=row['id'],description=row['description'],kind=row['kind'],day=deadline,amount=row['amount'],account=row['account'],status='Atrasado' if deadline<today.isoformat() else 'Hoje' if deadline==today.isoformat() else 'A vencer'))
         for row in self.s.rows('SELECT DISTINCT card_id,period FROM card_items ORDER BY period'):
             inv=self.invoice(row['card_id'],row['period'])
@@ -210,3 +213,4 @@ class Ledger:
         finally:
             source.close()
             if candidate.exists():candidate.unlink()
+    
