@@ -1,16 +1,23 @@
-# Horizonte Finanças
+# Horizonte Finanças 0.2
 
 Aplicativo desktop para Windows de controle de gastos, investimentos e planejamento por metas. Construído com Python, PySide6 e SQLite. A interface usa janelas nativas de desktop e funciona sem navegador ou servidor local.
 
 **Projeto demonstrativo de portfólio, em desenvolvimento. Todos os dados da demonstração são fictícios.** O repositório não contém extratos, planilhas, bancos de dados ou saldos pessoais.
 
-![Dashboard com dados fictícios](https://github.com/user-attachments/assets/378ce541-7f67-4126-b833-dc2816dc8b93)
+![Dashboard com dados fictícios](https://github.com/user-attachments/assets/243149c2-5429-49e6-a4f1-6ab813f0ccad)
+
+[Baixar instalador e ver versões](https://github.com/Eliseu2100/horizonte-financas/releases) · [Atualizar uma instalação existente](docs/ATUALIZACAO-0.2.md)
 
 ## O problema
 
 Registros de gastos, posições de investimento e objetivos futuros ficam difíceis de comparar quando tratados separadamente. O Horizonte organiza essas informações e explica quando o aporte necessário para uma meta supera a sobra mensal registrada.
 
 ## Funcionalidades implementadas
+
+- Cartões, faturas, compras parceladas, limite disponível e registro de pagamento sem duplicar despesas.
+- Agenda de compromissos, categorias/subcategorias, etiquetas e comprovantes locais.
+- Conciliação manual de extratos CSV/OFX para contas em BRL, com prévia e possíveis correspondências.
+- Interface inspirada em princípios HIG, com temas claro/escuro, calendários, paleta de ações e atalhos.
 
 - Receitas, despesas, aportes, resgates e transferências, com edição, pesquisa e filtros.
 - Competência mensal independente da data, categorias e situações confirmado, previsto e a revisar.
@@ -63,7 +70,7 @@ A documentação de [validação](docs/VALIDACAO.md) separa os testes automatiza
 
 ## Decisões e limites
 
-As análises são regras locais explicáveis, sem chamadas a modelos de IA. Valores monetários são armazenados em centavos. Aportes não são despesas de consumo; saldos de abertura não são receitas. A carteira é atualizada por posições informadas, sem inferir saldo ou rendimento a partir do fluxo de caixa.
+As análises são regras locais explicáveis, sem chamadas a modelos de IA. Valores monetários são armazenados em centavos. Pagamentos de fatura são saídas de caixa, e compras de cartão são consumo no mês de fatura. Aportes não são despesas de consumo; saldos de abertura não são receitas. A carteira é atualizada por posições informadas, sem inferir saldo ou rendimento a partir do fluxo de caixa.
 
 As projeções são estimativas nominais. CDI e inflação futuros são hipóteses editáveis; imposto é um percentual manual sobre ganho. Não há cálculo automático de IOF, tabela tributária regressiva, feriados bancários ou recomendação de compra/venda. Cripto sem hipótese de taxa fica com valor constante. Uma meta não coberta produz diagnóstico de insuficiência, não uma previsão de impossibilidade absoluta.
 
@@ -71,12 +78,15 @@ Não há integração bancária/Open Finance, sincronização em nuvem, autentic
 
 ## Planejamento e estudo de caso
 
+- [Design e referências](docs/DESIGN.md)
+- [Atualização 0.2](docs/ATUALIZACAO-0.2.md)
 - [Requisitos e escopo](docs/REQUISITOS.md)
 - [Arquitetura e modelo financeiro](docs/ARQUITETURA.md)
 - [Critérios de aceitação e validação](docs/VALIDACAO.md)
 - [Evolução planejada](docs/ROADMAP.md)
 - [Estudo de caso para portfólio](docs/ESTUDO-DE-CASO.md)
 
-Referências de produto: organização por categorias e planejamento do [Mobills](https://www.mobills.com.br/blog/mobills/como-utilizar-o-mobills/). Câmbio: [Frankfurter](https://frankfurter.dev/). Identidade e interface próprias, sem vínculo com esses serviços. O template Financial Budget foi consultado como referência de separação entre realizado, premissas e projeções; o produto entregue é um aplicativo desktop.
+Referências da versão 0.2: [Organizze](https://www.organizze.com.br/) e [Apple HIG](https://developer.apple.com/design/human-interface-guidelines/), com implementação própria e controles de Windows. Referências de produto: organização por categorias e planejamento do [Mobills](https://www.mobills.com.br/blog/mobills/como-utilizar-o-mobills/). Câmbio: [Frankfurter](https://frankfurter.dev/). Identidade e interface próprias, sem vínculo com esses serviços. O template Financial Budget foi consultado como referência de separação entre realizado, premissas e projeções; o produto entregue é um aplicativo desktop.
 
 Licenças de terceiros: [THIRD_PARTY_NOTICES.txt](THIRD_PARTY_NOTICES.txt). Código disponibilizado para demonstração e estudo; licença própria de distribuição comercial ainda não definida pelo autor.
+  
