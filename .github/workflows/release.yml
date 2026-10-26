@@ -36,7 +36,7 @@ jobs:
         shell: pwsh
         run: |
           $env:HORIZONTE_DATA_DIR = Join-Path $env:RUNNER_TEMP 'horizonte-smoke'
-          $process = Start-Process './dist/Horizonte/Horizonte.exe' -ArgumentList '--demo','--smoke-test' -Wait -PassThru -WindowStyle Hidden
+          $process = Start-Process './dist/Elisei/Elisei.exe' -ArgumentList '--demo','--smoke-test' -Wait -PassThru -WindowStyle Hidden
           if ($process.ExitCode -ne 0) { throw 'Executable smoke test failed.' }
           if (-not (Test-Path (Join-Path $env:HORIZONTE_DATA_DIR 'smoke-ok.txt'))) { throw 'Missing smoke marker.' }
       - name: Package installer
@@ -44,7 +44,7 @@ jobs:
         run: ./scripts/package.ps1
       - uses: actions/upload-artifact@v4
         with:
-          name: Horizonte-Windows-x64
+          name: Elisei-Windows-x64
           path: release/*
       - name: Publish release files
         if: github.event_name == 'release' || inputs.release_tag != ''
