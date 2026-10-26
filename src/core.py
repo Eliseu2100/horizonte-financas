@@ -4,7 +4,7 @@ from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from datetime import date, datetime
 from pathlib import Path
 CATEGORIES=['Moradia e contas','Alimentação','Transporte','Educação','Lazer','Saúde e cuidados','Compras','Assinaturas','Impostos e tarifas','Doações','Empréstimos','Faturas a detalhar','Outros','Salário','Receitas extras','Investimentos']
-KINDS=['Receita','Despesa','Aporte','Resgate','Transferência']
+KINDS=['Receita','Despesa','Aporte','Resgate','Transferência','Pagamento de fatura']
 MONTHS=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
 def cents(value):
     if isinstance(value,str):
@@ -38,6 +38,14 @@ class Store:
     def __init__(self,path):
         self.path=Path(path); self.path.parent.mkdir(parents=True,exist_ok=True)
         self.db=sqlite3.connect(str(path)); self.db.row_factory=sqlite3.Row
+        tables={r[0] for r in self.db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        if 'settings' in tables:
+            version=self.db.execute("SELECT value FROM settings WHERE key='schema-version'").fetchone()
+            if version and int(version[0])>2:raise ValueError('Banco de uma versão mais nova. Atualize o Horizonte.')
+            if not version:
+                target=self.path.parent/'backups'/('antes-atualizacao-0.2-'+datetime.now().strftime('%Y%m%d-%H%M%S-%f')+'.sqlite');target.parent.mkdir(parents=True,exist_ok=True);copy=sqlite3.connect(target)
+                try:self.db.backup(copy)
+                finally:copy.close()
         self.db.execute('PRAGMA foreign_keys=ON')
         self.db.executescript('''
         CREATE TABLE IF NOT EXISTS tx(id INTEGER PRIMARY KEY,period TEXT NOT NULL,day TEXT,description TEXT NOT NULL,kind TEXT NOT NULL,category TEXT NOT NULL,amount INTEGER,account TEXT DEFAULT '',status TEXT DEFAULT 'Confirmado',source TEXT DEFAULT '',source_key TEXT UNIQUE,note TEXT DEFAULT '');
@@ -59,27 +67,36 @@ class Store:
             if key not in columns:self.db.execute('ALTER TABLE positions ADD COLUMN '+key+' '+definition)
         if not self.db.execute('SELECT 1 FROM goals').fetchone(): self.db.execute('INSERT INTO goals VALUES (1,?,?,?,?,?,?)',('Meu objetivo',10000000,0,'2030-03-01',0,0))
         self.db.commit()
+        from ledger import migrate
+        migrate(self)
+    def category_names(self):return [r['name'] for r in self.rows('SELECT name FROM categories WHERE archived=0 ORDER BY name')]
     def rows(self,sql,args=()): return [dict(r) for r in self.db.execute(sql,args)]
     def setting(self,key,default=''):
         row=self.db.execute('SELECT value FROM settings WHERE key=?',(key,)).fetchone(); return row[0] if row else default
     def set(self,key,value):
         self.db.execute('INSERT OR REPLACE INTO settings VALUES (?,?)',(key,str(value))); self.db.commit()
-    def periods(self): return sorted(set([date.today().strftime('%Y-%m')]+[r[0] for r in self.db.execute('SELECT DISTINCT period FROM tx UNION SELECT DISTINCT period FROM snapshots')]))
+    def periods(self): return sorted(set([date.today().strftime('%Y-%m')]+[r[0] for r in self.db.execute('SELECT DISTINCT period FROM tx UNION SELECT DISTINCT period FROM snapshots UNION SELECT DISTINCT period FROM card_items')]))
     def summary(self,period):
         vals={k:0 for k in KINDS}
         for r in self.rows("SELECT kind,SUM(amount) AS total FROM tx WHERE period=? AND amount IS NOT NULL AND status!='Previsto' GROUP BY kind",(period,)): vals[r['kind']]=r['total'] or 0
-        vals['livre']=vals['Receita']-vals['Despesa']-vals['Aporte']+vals['Resgate']; return vals
-    def save_tx(self,data,ident=None):
+        vals['Despesa em conta']=vals['Despesa']
+        vals['Compras no cartão']=self.rows('SELECT COALESCE(SUM(amount),0) n FROM card_items WHERE period=?',(period,))[0]['n']
+        vals['Despesa']+=vals['Compras no cartão']
+        vals['livre']=vals['Receita']-vals['Despesa em conta']-vals['Aporte']+vals['Resgate']-vals['Pagamento de fatura']; return vals
+    def save_tx(self,data,ident=None,commit=True):
         if not data['description'].strip(): raise ValueError('Preencha a descrição.')
         if data['day']: date.fromisoformat(data['day'])
         datetime.strptime(data['period'],'%Y-%m')
         if data['amount'] is not None and data['amount']<0: raise ValueError('Use um valor positivo e selecione o tipo.')
         if data['kind'] not in KINDS: raise ValueError('Tipo inválido.')
         if data['kind']=='Transferência' and data.get('target_account') and data.get('target_account')==data.get('account'):raise ValueError('Origem e destino da transferência devem ser diferentes.')
-        cols=['period','day','description','kind','category','amount','account','target_account','status','note']; args=[data.get(k,'') for k in cols]
+        if data.get('due_day'):date.fromisoformat(data['due_day'])
+        if data.get('status') not in ['Confirmado','A revisar','Previsto']:raise ValueError('Situação inválida.')
+        data=dict(data);data.setdefault('occurrence_index',1)
+        cols=['period','day','description','kind','category','amount','account','target_account','status','note','due_day','tags','series_key','occurrence_index']; args=[data.get(k,'') for k in cols]
         if ident: self.db.execute('UPDATE tx SET '+','.join(k+'=?' for k in cols)+' WHERE id=?',args+[ident])
         else: self.db.execute('INSERT INTO tx ('+','.join(cols)+') VALUES ('+','.join('?' for _ in cols)+')',args)
-        self.db.commit()
+        if commit:self.db.commit()
     def backup(self,path):
         if Path(path).resolve()==self.path.resolve(): raise ValueError('Escolha outro arquivo.')
         target=sqlite3.connect(str(path))
