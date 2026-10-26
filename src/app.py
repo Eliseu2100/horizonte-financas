@@ -5,9 +5,9 @@ from PySide6.QtCore import Qt, QDate, QThread, Signal, QTimer, QRectF, QPointF, 
 from PySide6.QtGui import QColor, QPainter, QPen, QFont, QPainterPath, QIcon, QFontDatabase, QPixmap, QImage, QTextDocument
 from PySide6.QtWidgets import (QApplication,QMainWindow,QWidget,QVBoxLayout,QHBoxLayout,QGridLayout,QLabel,QPushButton,QComboBox,QLineEdit,QTableWidget,QTableWidgetItem,QHeaderView,QAbstractItemView,QScrollArea,QFrame,QDialog,QFormLayout,QDialogButtonBox,QDateEdit,QDoubleSpinBox,QSpinBox,QMessageBox,QFileDialog,QProgressBar,QTextEdit,QCheckBox)
 from core import *
-from widgets import FlowLayout
-from finance import position_projection, goal_assessment, recent_capacity, insights, allocation, asset_group
-VERSION='0.2.1'
+from widgets import FlowLayout,MetricLabel
+from finance import position_projection, investment_projection, goal_assessment, recent_capacity, insights, allocation, asset_group
+VERSION='0.3.0'
 ROOT=Path(getattr(sys,'_MEIPASS',Path(__file__).parent))
 PALETTE=['#14816e','#527bdd','#e5a64e','#9c77cf','#dd7787','#62a6b1','#829468','#aa8868']
 STYLE='''
@@ -27,12 +27,14 @@ QScrollBar:vertical {width:10px;background:#f4f7f6;} QScrollBar::handle:vertical
 QDialog {background:#f4f7f6;}
 '''
 def label(text,kind=None,wrap=False):
-    w=QLabel(str(text)); w.setWordWrap(wrap)
+    w=MetricLabel(str(text)) if kind=='metric' else QLabel(str(text)); w.setWordWrap(False if kind=='metric' else (wrap or kind in ['section','subtitle','small']))
     if kind: w.setObjectName(kind)
     w.setTextInteractionFlags(Qt.TextSelectableByMouse); return w
 
 def button(text,fn,primary=False):
     b=QPushButton(text); b.clicked.connect(fn)
+    from design import action_icon
+    b.setIcon(action_icon(text,'#ffffff' if primary else None));b.setAccessibleName(text)
     if primary:b.setObjectName('primary')
     return b
 
@@ -46,7 +48,9 @@ def table(headers,rows):
     t.setWordWrap(False);t.setTextElideMode(Qt.ElideRight);t.setEditTriggers(QAbstractItemView.NoEditTriggers); t.setSelectionBehavior(QAbstractItemView.SelectRows); t.setSelectionMode(QAbstractItemView.SingleSelection)
     for i,row in enumerate(rows):
         for j,value in enumerate(row):
-            item=QTableWidgetItem(str(value if value is not None else '—')); t.setItem(i,j,item)
+            formatted=str(value if value is not None else '—')
+            if __import__('core').PRIVACY_MODE and any(word in headers[j].casefold() for word in ['valor','saldo','custo','rendimento','retirada','aporte','gasto','fluxo','limite','receita','despesa','resgate','brl','consumo','disponível','variação']):formatted='••••'
+            item=QTableWidgetItem(formatted); t.setItem(i,j,item)
     t.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents);t.horizontalHeader().setMinimumSectionSize(120);t.horizontalHeader().setStretchLastSection(False);t.horizontalHeader().setMinimumHeight(max(46,t.fontMetrics().height()+24));t.verticalHeader().setDefaultSectionSize(max(48,t.fontMetrics().height()+24));t.verticalHeader().setMinimumSectionSize(max(48,t.fontMetrics().height()+24))
     t.setHorizontalScrollMode(QAbstractItemView.ScrollPerPixel);t.setMinimumHeight(240); return t
 
@@ -109,7 +113,7 @@ class FXWorker(QThread):
     def run(self):
         import urllib.request
         try:
-            req=urllib.request.Request('https://api.frankfurter.dev/v2/rate/brl/jpy',headers={'User-Agent':'Horizonte/0.1'})
+            req=urllib.request.Request('https://api.frankfurter.dev/v2/rate/brl/jpy',headers={'User-Agent':'Elisei/0.3'})
             with urllib.request.urlopen(req,timeout=15) as r:data=json.load(r)
             if not isinstance(data.get('rate'),(float,int)) or data['rate']<=0:raise ValueError('Cotação inválida')
             self.done.emit(data)
@@ -117,8 +121,8 @@ class FXWorker(QThread):
 
 class Window(QMainWindow):
     def __init__(self,store):
-        super().__init__();self.s=store;self.page='Visão geral';self.fx=None;self.setWindowTitle('Horizonte • Finanças pessoais');self.resize(1440,960);self.setMinimumSize(1080,740)
-        self.setWindowIcon(QIcon(str(ROOT/'horizonte.ico')))
+        super().__init__();self.s=store;self.page='Visão geral';self.fx=None;self.setWindowTitle('Elisei • Finanças pessoais');self.resize(1440,960);self.setMinimumSize(1080,740)
+        self.setWindowIcon(QIcon(str(ROOT/'elisei.ico')))
         root=QWidget();self.setCentralWidget(root);row=QHBoxLayout(root);row.setContentsMargins(0,0,0,0);row.setSpacing(0)
         side=QFrame();side.setObjectName('sidebar');side.setFixedWidth(225);sl=QVBoxLayout(side);sl.setContentsMargins(20,30,20,24);sl.setSpacing(4)
         sl.addWidget(label('horizonte','brand'));sl.addWidget(label('FINANÇAS PESSOAIS','small'));sl.addSpacing(18);self.nav={}
@@ -258,6 +262,8 @@ class Window(QMainWindow):
                 if not math.isfinite(v['rate']) or not -99<v['rate']<=1000 or not 0<=v['tax']<=100:raise ValueError('Revise taxa e imposto (0 a 100%).')
                 if not v['name'] or v['value']<0 or (v['principal'] is not None and v['principal']<0):raise ValueError('Nome obrigatório e valores não negativos.')
                 date.fromisoformat(v['day'])
+                if v['day']>date.today().isoformat():raise ValueError('Use uma data de saldo já realizada. Datas futuras pertencem à projeção.')
+                if data and v['currency']!=data['currency']:raise ValueError('Para outra moeda, cadastre um novo ativo e preserve o histórico deste investimento.')
                 if v['maturity']:date.fromisoformat(v['maturity'])
                 keys=list(v);args=list(v.values())
                 if data:self.s.db.execute('UPDATE positions SET '+','.join(k+'=?' for k in keys)+' WHERE id=?',args+[data['id']])
@@ -282,7 +288,7 @@ class Window(QMainWindow):
                 series=[];labs=[];today=date.today()
                 for idx in range(a['months']+1):
                     k=today.year*12+today.month-1+idx;y,m=divmod(k,12);labs.append(f'{m+1:02d}/{str(y)[2:]}');dt=f'{y:04d}-{m+1:02d}-01'
-                    future=sum(position_projection(p,dt,float(self.s.setting('assumed-cdi','10')),float(self.s.setting('assumed-inflation','4')))['net'] for p in holdings if position_projection(p,g['deadline'])['available'])
+                    future=sum(investment_projection(self.s,p,dt,float(self.s.setting('assumed-cdi','10')),float(self.s.setting('assumed-inflation','4')))['net'] for p in holdings if investment_projection(self.s,p,g['deadline'])['available'])
                     new=forecast(0,g['contribution'],g['annual'],idx)[-1];series.append(future+new)
                 l.addWidget(Chart('line',[('Disponível + aportes',series),('Meta',[g['target']]*len(series))],labs,260))
             else:
@@ -309,12 +315,12 @@ class Window(QMainWindow):
             try:
                 v=f.values();date.fromisoformat(v['deadline']);cdi=float(v['cdi'].replace(',','.'));inflation=float(v['inflation'].replace(',','.'))
                 if not 0<=cdi<=100 or not -20<=inflation<=100:raise ValueError('Revise os indexadores hipotéticos.')
-                result=position_projection(p,v['deadline'],cdi,inflation);self.s.set('assumed-cdi',cdi);self.s.set('assumed-inflation',inflation)
+                result=investment_projection(self.s,p,v['deadline'],cdi,inflation);self.s.set('assumed-cdi',cdi);self.s.set('assumed-inflation',inflation)
                 d=QDialog(self);d.setWindowTitle('Resultado estimado');d.resize(700,500);l=QVBoxLayout(d);l.addWidget(label(p['name'],'title'));l.addWidget(label('Saldo líquido estimado: '+money(result['net']),'metric'));l.addWidget(label('Bruto: '+money(result['gross'])+' • Imposto hipotético: '+money(result['tax']),None,True));l.addWidget(label('Indexador: '+p['rate_mode']+' • Taxa: '+str(p['rate'])+' • Imposto configurado: '+str(p['tax'])+'%',None,True))
                 labs=[];values=[];start=date.fromisoformat(p['day']);end=date.fromisoformat(v['deadline']);n=max(0,(end.year-start.year)*12+end.month-start.month)
                 if n>600:raise ValueError('Prazo máximo de 50 anos.')
                 for offset in range(n+1):
-                    key=start.year*12+start.month-1+offset;y,m=divmod(key,12);day=f'{y:04d}-{m+1:02d}-01';labs.append(day[2:7]);values.append(position_projection(p,day,cdi,inflation)['net'])
+                    key=start.year*12+start.month-1+offset;y,m=divmod(key,12);day=f'{y:04d}-{m+1:02d}-01';labs.append(day[2:7]);values.append(investment_projection(self.s,p,day,cdi,inflation)['net'])
                 l.addWidget(Chart('line',[('Saldo estimado',values)],labs));l.addWidget(label(' '.join(result['warnings'])+' Prefixado/IPCA: dias corridos / 365. CDI: dias de segunda a sexta / 252, sem feriados. Imposto é uma hipótese manual; IOF e tarifas não calculados. Valores nominais.','small',True));l.addWidget(button('Fechar',d.accept));d.exec();break
             except (ValueError,OverflowError) as e:f.error.setText(str(e))
     def analysis(self):
@@ -520,13 +526,13 @@ class Window(QMainWindow):
             w,l=card(title);chart=Chart('bar',[('Valor BRL',list(values.values()))],list(values),240);l.addWidget(chart);self.report_charts.append(chart);l.addWidget(table(['Item','Valor BRL'],[[k,money(v)] for k,v in values.items()]));self.body.addWidget(w)
         w,l=card('Agenda de vencimentos');positions=self.s.rows("SELECT * FROM positions WHERE maturity!='' ORDER BY maturity");l.addWidget(table(['Ativo','Tipo','Vencimento','Saldo informado'],[[p['name'],p['asset_type'],p['maturity'],money(p['value'])] for p in positions]));self.body.addWidget(w)
     def export_report(self):
-        path,_=QFileDialog.getSaveFileName(self,'Relatório PDF','Horizonte-'+self.p+'.pdf','PDF (*.pdf)')
+        path,_=QFileDialog.getSaveFileName(self,'Relatório PDF','Elisei-'+self.p+'.pdf','PDF (*.pdf)')
         if not path:return
         try:
             from PySide6.QtPrintSupport import QPrinter
             from html import escape
             from PySide6.QtCore import QUrl
-            doc=QTextDocument();html='<h1>Horizonte — relatório financeiro</h1><p>Competência: '+escape(month_label(self.p))+' • Gerado em '+date.today().isoformat()+'</p>'
+            doc=QTextDocument();html='<h1>Elisei — relatório financeiro</h1><p>Competência: '+escape(month_label(self.p))+' • Gerado em '+date.today().isoformat()+'</p>'
             if self.s.setting('demo')=='1':html+='<p>DEMONSTRAÇÃO: dados fictícios.</p>'
             for child in self.scroll.widget().findChildren(QTableWidget):
                 html+='<table border="1" cellpadding="6" cellspacing="0" width="100%"><tr>'
@@ -549,7 +555,7 @@ class Window(QMainWindow):
         if reports:
             w,l=card('Relatório da última importação');text=QTextEdit();text.setReadOnly(True);text.setPlainText(reports[0]['report']);text.setMinimumHeight(270);l.addWidget(text);self.body.addWidget(w)
         w,l=card('Cópias e portabilidade');row=FlowLayout();row.addWidget(button('Criar backup .sqlite',self.backup));row.addWidget(button('Restaurar backup',self.restore));row.addWidget(button('Pasta de backup automático',self.choose_backup_folder));row.addWidget(button('Exportar lançamentos CSV',self.export_csv));l.addLayout(row);l.addWidget(label('Local dos dados: '+str(self.s.path),'small',True));l.addWidget(label('Backup automático: '+self.s.setting('backup-folder',str(self.s.path.parent/'backups'))+' • Última cópia: '+self.s.setting('last-backup','ainda não realizada'),'small',True));l.addWidget(label('Backup inclui perfil, foto, contas, lançamentos, metas, carteira, limites e premissas. Arquivos locais não são criptografados. A exportação CSV contém apenas lançamentos.','small',True));self.body.addWidget(w)
-        w,l=card('Sobre esta versão');l.addWidget(label('Horizonte '+VERSION+' • aplicativo desktop para Windows. Não exige navegador, conta, assinatura ou API paga. Câmbio é consultado apenas quando solicitado. Não possui conexão bancária automática, sincronização, tributação automática ou cotação de cripto em tempo real.','subtitle',True));l.addWidget(label('Fontes de referência: Mobills (organização por categorias e orçamento); Financial Budget (realizado, premissas e previsões); Frankfurter (câmbio diário). Interface própria.','small',True));self.body.addWidget(w)
+        w,l=card('Sobre esta versão');l.addWidget(label('Elisei '+VERSION+' • aplicativo desktop para Windows. Não exige navegador, conta, assinatura ou API paga. Câmbio é consultado apenas quando solicitado. Não possui conexão bancária automática, sincronização, tributação automática ou cotação de cripto em tempo real.','subtitle',True));l.addWidget(label('Referências de produto: Copilot Money, Actual Budget e Budget Flow; design orientado por Apple HIG, com identidade própria. Câmbio diário Frankfurter. Sem vínculo com esses produtos.','small',True));self.body.addWidget(w)
     def import_file(self):
         path,_=QFileDialog.getOpenFileName(self,'Importar planilha','','Excel (*.xlsx)')
         if not path:return
@@ -557,7 +563,7 @@ class Window(QMainWindow):
             report=self.s.import_excel(path);self.refresh_periods();self.render();QMessageBox.information(self,'Importação concluída',report)
         except Exception as e:QMessageBox.warning(self,'Não foi possível importar',str(e))
     def backup(self):
-        path,_=QFileDialog.getSaveFileName(self,'Criar backup','Horizonte-'+date.today().isoformat()+'.sqlite','SQLite (*.sqlite)')
+        path,_=QFileDialog.getSaveFileName(self,'Criar backup','Elisei-'+date.today().isoformat()+'.sqlite','SQLite (*.sqlite)')
         if path:
             try:self.s.backup(path);QMessageBox.information(self,'Backup','Cópia de segurança criada.')
             except Exception as e:QMessageBox.warning(self,'Backup',str(e))
@@ -598,7 +604,7 @@ class Window(QMainWindow):
         self.s.db.close();event.accept()
 
 def main():
-    app=QApplication(sys.argv)
+    app=QApplication(sys.argv);app.setApplicationName('Elisei');app.setApplicationDisplayName('Elisei Finanças');app.setWindowIcon(QIcon(str(ROOT/'elisei.ico')))
     for fontfile in ['segoeui.ttf','segoeuib.ttf']:
         QFontDatabase.addApplicationFont(str(Path(os.environ.get('WINDIR','C:/Windows'))/'Fonts'/fontfile))
     app.setFont(QFont('Segoe UI',10));app.setStyle('Fusion');app.setStyleSheet(STYLE)
@@ -611,7 +617,7 @@ def main():
     sys.excepthook=ui_error
     lock=QLockFile(str(folder/'session.lock'));lock.setStaleLockTime(0)
     if not lock.tryLock(0):
-        QMessageBox.information(None,'Horizonte já está aberto','Feche a outra janela do Horizonte antes de abrir este banco novamente.');return
+        QMessageBox.information(None,'Elisei já está aberto','Feche o Elisei ou a versão anterior do Horizonte antes de abrir este banco novamente.');return
     if '--demo' not in sys.argv and not database.exists() and (ROOT/'seed.sqlite').exists():shutil.copy2(ROOT/'seed.sqlite',database)
     store=Store(database)
     if '--demo' in sys.argv:
