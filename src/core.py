@@ -14,7 +14,10 @@ def cents(value):
     except InvalidOperation: raise ValueError('Informe um número, como 125,90.')
     if not d.is_finite() or abs(d)>Decimal('100000000000'): raise ValueError('Valor inválido ou acima do limite.')
     return int((d*100).quantize(Decimal('1'),rounding=ROUND_HALF_UP))
-def money(n): return 'R$ '+f'{n/100:,.2f}'.replace(',','_').replace('.',',').replace('_','.')
+PRIVACY_MODE=False
+def money(n):
+    if PRIVACY_MODE:return 'R$ ••••'
+    return 'R$ '+f'{n/100:,.2f}'.replace(',','_').replace('.',',').replace('_','.')
 def month_label(s):
     y,m=map(int,s.split('-')); return f'{MONTHS[m-1]} {y}'
 def category(text):
@@ -41,9 +44,9 @@ class Store:
         tables={r[0] for r in self.db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
         if 'settings' in tables:
             version=self.db.execute("SELECT value FROM settings WHERE key='schema-version'").fetchone()
-            if version and int(version[0])>2:raise ValueError('Banco de uma versão mais nova. Atualize o Horizonte.')
-            if not version:
-                target=self.path.parent/'backups'/('antes-atualizacao-0.2-'+datetime.now().strftime('%Y%m%d-%H%M%S-%f')+'.sqlite');target.parent.mkdir(parents=True,exist_ok=True);copy=sqlite3.connect(target)
+            if version and int(version[0])>3:raise ValueError('Banco de uma versão mais nova. Atualize o Elisei.')
+            if not version or int(version[0])<3:
+                target=self.path.parent/'backups'/('antes-atualizacao-0.3-'+datetime.now().strftime('%Y%m%d-%H%M%S-%f')+'.sqlite');target.parent.mkdir(parents=True,exist_ok=True);copy=sqlite3.connect(target)
                 try:self.db.backup(copy)
                 finally:copy.close()
         self.db.execute('PRAGMA foreign_keys=ON')
@@ -75,7 +78,7 @@ class Store:
         row=self.db.execute('SELECT value FROM settings WHERE key=?',(key,)).fetchone(); return row[0] if row else default
     def set(self,key,value):
         self.db.execute('INSERT OR REPLACE INTO settings VALUES (?,?)',(key,str(value))); self.db.commit()
-    def periods(self): return sorted(set([date.today().strftime('%Y-%m')]+[r[0] for r in self.db.execute('SELECT DISTINCT period FROM tx UNION SELECT DISTINCT period FROM snapshots UNION SELECT DISTINCT period FROM card_items')]))
+    def periods(self): return sorted(set([date.today().strftime('%Y-%m')]+[r[0] for r in self.db.execute('SELECT DISTINCT period FROM tx UNION SELECT DISTINCT period FROM snapshots UNION SELECT DISTINCT period FROM card_items UNION SELECT DISTINCT substr(day,1,7) FROM investment_events UNION SELECT DISTINCT substr(day,1,7) FROM investment_values')]))
     def summary(self,period):
         vals={k:0 for k in KINDS}
         for r in self.rows("SELECT kind,SUM(amount) AS total FROM tx WHERE period=? AND amount IS NOT NULL AND status!='Previsto' GROUP BY kind",(period,)): vals[r['kind']]=r['total'] or 0
@@ -172,3 +175,4 @@ class Store:
             return report
         finally: wb.close()
 
+    
